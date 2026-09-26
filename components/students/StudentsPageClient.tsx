@@ -23,9 +23,13 @@ import {
   EmptyState,
 } from "@/components/admin/ui";
 import { dueMonthsForStudent, totalPaidByStudent, formatTaka } from "@/lib/utils";
-import { toBengaliDigits } from "@/lib/bengaliNumerals";
+import { toBengaliDigits, formatBengaliDate } from "@/lib/bengaliNumerals";
 
 const GROUPS = ["বিজ্ঞান বিভাগ", "মানবিক বিভাগ", "ব্যবসায় শিক্ষা বিভাগ"];
+
+function getTodayDateString() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 const EMPTY_FORM: StudentInput = {
   full_name: "",
@@ -37,6 +41,7 @@ const EMPTY_FORM: StudentInput = {
   phone: "",
   guardian_phone: "",
   status: "confirmed",
+  created_at: getTodayDateString(),
 };
 
 export default function StudentsPageClient({
@@ -103,6 +108,7 @@ export default function StudentsPageClient({
       ...EMPTY_FORM,
       batch_id: batches[0]?.id || "",
       batch_name_snapshot: batches[0]?.name || "",
+      created_at: getTodayDateString(),
     });
     setModalOpen(true);
   }
@@ -119,6 +125,7 @@ export default function StudentsPageClient({
       phone: student.phone,
       guardian_phone: student.guardian_phone || "",
       status: student.status,
+      created_at: student.created_at ? student.created_at.slice(0, 10) : getTodayDateString(),
     });
     setModalOpen(true);
   }
@@ -281,15 +288,15 @@ export default function StudentsPageClient({
       {/* স্টুডেন্ট টেবিল */}
       <div className="overflow-hidden rounded-[24px] border border-border-base/80 bg-white shadow-sh2">
         <div className="sleek-scrollbar overflow-x-auto">
-          <table className="w-full min-w-[860px] text-left">
+          <table className="w-full min-w-[880px] text-left">
             <thead>
               <tr className="border-b border-border-base bg-[#F8FAFC] font-body text-[11px] font-extrabold uppercase tracking-wider text-muted">
-                <th className="py-3.5 pl-4 pr-3">শিক্ষার্থী</th>
+                <th className="py-3.5 pl-4 pr-3">শিক্ষার্থী ও ভর্তির তারিখ</th>
                 <th className="p-3.5">কলেজ ও রোল</th>
                 <th className="p-3.5">ব্যাচ</th>
                 <th className="p-3.5">মোবাইল নম্বর</th>
                 <th className="p-3.5">মোট ফি প্রদান</th>
-                <th className="p-3.5">বকেয়া</th>
+                <th className="p-3.5">বকেয়া অবস্থা</th>
                 <th className="p-3.5">স্ট্যাটাস</th>
                 <th className="p-3.5 pr-4 text-right">অ্যাকশন</th>
               </tr>
@@ -314,7 +321,7 @@ export default function StudentsPageClient({
                       key={s.id}
                       className="transition-colors odd:bg-white even:bg-[#F8FAFC]/70 hover:bg-sky-50/40"
                     >
-                      {/* নাম ও বিভাগ */}
+                      {/* নাম, গ্রুপ ও ভর্তির তারিখ */}
                       <td className="py-3 pl-4 pr-3">
                         <div className="flex items-center gap-2.5">
                           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-sky-600 font-body text-[13px] font-black text-white shadow-xs">
@@ -325,7 +332,7 @@ export default function StudentsPageClient({
                               {s.full_name}
                             </p>
                             <span className="font-body text-[11px] font-semibold text-muted">
-                              {s.group_name}
+                              {s.group_name} · <span className="text-sky-800 font-bold">ভর্তি: {formatBengaliDate(s.created_at ? s.created_at.slice(0, 10) : getTodayDateString())}</span>
                             </span>
                           </div>
                         </div>
@@ -363,7 +370,7 @@ export default function StudentsPageClient({
                         {formatTaka(totalPaid)}
                       </td>
 
-                      {/* বকেয়া মাস */}
+                      {/* বকেয়া মাস (রানিং মাস ছাড়া নিখুঁত হিসাব) */}
                       <td className="whitespace-nowrap p-3">
                         {s.status === "confirmed" && dueMonths > 0 ? (
                           <Badge tone={dueMonths >= 3 ? "danger" : "warn"}>
@@ -415,7 +422,7 @@ export default function StudentsPageClient({
                             type="button"
                             onClick={() => openEditModal(s)}
                             className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-base/80 bg-white text-ink-800 transition-colors hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
-                            title="সম্পাদনা করুন"
+                            title="তথ্য ও ভর্তির তারিখ সম্পাদনা"
                           >
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
@@ -444,12 +451,12 @@ export default function StudentsPageClient({
         </div>
       </div>
 
-      {/* ভর্তি / এডিট মোডাল */}
+      {/* ভর্তি / এডিট মোডাল (ভর্তির তারিখ ফিল্ড সহ) */}
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingStudent ? "শিক্ষার্থীর তথ্য সম্পাদনা" : "নতুন শিক্ষার্থী ভর্তি ফরম"}
-        description="শিক্ষার্থীর প্রয়োজনীয় একাডেমিক ও যোগাযোগের তথ্য পূরণ করুন।"
+        title={editingStudent ? "শিক্ষার্থীর তথ্য ও সাইকেল সম্পাদনা" : "নতুন শিক্ষার্থী ভর্তি ফরম"}
+        description="শিক্ষার্থীর একাডেমিক তথ্য ও সাইকেল শুরুর ভর্তির তারিখ পূরণ করুন।"
       >
         <form onSubmit={handleSaveStudent} className="space-y-3.5">
           <Field label="শিক্ষার্থীর পূর্ণ নাম" required>
@@ -458,6 +465,16 @@ export default function StudentsPageClient({
               placeholder="যেমন: মোঃ সাকিব হোসেন"
               value={formData.full_name}
               onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+            />
+          </Field>
+
+          {/* 🎯 ভর্তির তারিখ / ক্লাস শুরুর তারিখ (ক্যালেন্ডার পিকার) */}
+          <Field label="ভর্তির তারিখ / ক্লাস শুরু (বেতনের সাইকেল শুরু) *" required>
+            <TextInput
+              type="date"
+              required
+              value={formData.created_at || getTodayDateString()}
+              onChange={(e) => setFormData({ ...formData, created_at: e.target.value })}
             />
           </Field>
 
