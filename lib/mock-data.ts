@@ -4,20 +4,8 @@ import type {
   ClassDiaryEntry,
   Expense,
   Payment,
-  SalaryPayment,
-  Staff,
   Student,
 } from "./types";
-
-// ══════════════════════════════════════════════════════════════════════
-// এই ফাইলের batches / blog_posts / class_diary_entries — আসল Supabase
-// প্রজেক্ট (ahsans) থেকে সরাসরি নেওয়া প্রকৃত ডেটা (id সহ), যাতে অ্যাডমিন
-// প্যানেলটা প্রিভিউতেও বাস্তব ডেটার সাথে মেলে। students / payments /
-// expenses / staff — এগুলো এখনো ডাটাবেজে বাস্তব রেকর্ড নেই (students টেবিলে
-// এখন খালি একটা টেস্ট এন্ট্রি আছে মাত্র), তাই সেগুলো বাস্তবসম্মত নমুনা ডেটা
-// হিসেবে বানানো হয়েছে — যাতে ড্যাশবোর্ড/টেবিল/অ্যালার্ট আসল ব্যবহারের মতো
-// দেখা যায়। ব্যাকএন্ড যুক্ত হলে এই ফাইলটার বদলে সরাসরি Supabase কোয়েরি বসবে।
-// ══════════════════════════════════════════════════════════════════════
 
 export const BATCHES: Batch[] = [
   {
@@ -100,7 +88,6 @@ export const BATCHES: Batch[] = [
   },
 ];
 
-/** ব্যাচ অনুযায়ী মাসিক বেতন — DB-তে এখনো এই কলাম নেই, প্রস্তাবিত ডিফল্ট মান */
 export const BATCH_MONTHLY_FEE: Record<string, number> = {
   "fe972580-fa68-4ebd-b7ce-ea67c6cee7d0": 1200,
   "ab04ff51-fcd3-4b37-9406-54d62b846df0": 1200,
@@ -136,14 +123,13 @@ export const STUDENTS: Student[] = STUDENT_SEEDS.map((s) => ({
   monthly_fee: BATCH_MONTHLY_FEE[s.batch_id ?? ""] ?? 1200,
 }));
 
-// ── প্রতিটা শিক্ষার্থীর জন্য এনরোলমেন্ট থেকে এখন পর্যন্ত পেমেন্ট হিস্ট্রি জেনারেট ──
 function generatePayments(): Payment[] {
   const today = new Date("2026-09-26T00:00:00Z");
   const payments: Payment[] = [];
   let counter = 1;
 
   for (const seed of STUDENT_SEEDS) {
-    if (seed.status === "pending") continue; // পেন্ডিং শিক্ষার্থী এখনো ভর্তি নিশ্চিত হয়নি, বেতন শুরু হয়নি
+    if (seed.status === "pending") continue;
 
     const start = new Date(seed.created_at);
     const totalMonths =
@@ -172,7 +158,6 @@ function generatePayments(): Payment[] {
 
 export const PAYMENTS: Payment[] = generatePayments();
 
-// ── আসল Supabase প্রজেক্ট থেকে নেওয়া ব্লগ পোস্ট ──
 export const BLOG_POSTS: BlogPost[] = [
   {
     id: "b1",
@@ -209,7 +194,6 @@ export const BLOG_POSTS: BlogPost[] = [
   },
 ];
 
-// ── আসল Supabase প্রজেক্ট থেকে নেওয়া ক্লাস ডায়েরি এন্ট্রি ──
 export const CLASS_DIARY: ClassDiaryEntry[] = [
   {
     id: "d1",
@@ -243,7 +227,6 @@ export const CLASS_DIARY: ClassDiaryEntry[] = [
   },
 ];
 
-// ── প্রস্তাবিত নতুন ফিচার: খরচ ও স্টাফ বেতন (নমুনা ডেটা) ──
 export const EXPENSES: Expense[] = [
   { id: "e1", title: "সেপ্টেম্বর মাসের একাডেমি ভাড়া", category: "ভাড়া", amount: 15000, expense_date: "2026-09-03", note: null, created_at: "2026-09-03T00:00:00Z" },
   { id: "e2", title: "বিদ্যুৎ বিল — আগস্ট", category: "বিদ্যুৎ বিল", amount: 2400, expense_date: "2026-09-05", note: null, created_at: "2026-09-05T00:00:00Z" },
@@ -251,15 +234,4 @@ export const EXPENSES: Expense[] = [
   { id: "e4", title: "ফেসবুক পেজ বুস্টিং", category: "মার্কেটিং", amount: 3000, expense_date: "2026-09-12", note: "নতুন ব্যাচ প্রচারণা", created_at: "2026-09-12T00:00:00Z" },
   { id: "e5", title: "হোয়াইটবোর্ড মার্কার ও কালি", category: "রক্ষণাবেক্ষণ", amount: 650, expense_date: "2026-09-15", note: null, created_at: "2026-09-15T00:00:00Z" },
   { id: "e6", title: "আগস্ট মাসের একাডেমি ভাড়া", category: "ভাড়া", amount: 15000, expense_date: "2026-08-03", note: null, created_at: "2026-08-03T00:00:00Z" },
-];
-
-export const STAFF: Staff[] = [
-  { id: "st1", full_name: "মোঃ আহসান উল্লাহ", role: "প্রধান শিক্ষক (English & ICT)", phone: "01836452795", monthly_salary: 0, joined_at: "2025-06-01", is_active: true },
-  { id: "st2", full_name: "সাদিয়া আফরিন", role: "সহকারী শিক্ষক (ICT)", phone: "01711998877", monthly_salary: 12000, joined_at: "2026-02-01", is_active: true },
-  { id: "st3", full_name: "রফিকুল ইসলাম", role: "অফিস সহকারী", phone: "01922113344", monthly_salary: 8000, joined_at: "2026-03-15", is_active: true },
-];
-
-export const SALARY_PAYMENTS: SalaryPayment[] = [
-  { id: "sp1", staff_id: "st2", amount: 12000, for_month: "2026-08-01", paid_at: "2026-09-01T00:00:00Z", note: null },
-  { id: "sp2", staff_id: "st3", amount: 8000, for_month: "2026-08-01", paid_at: "2026-09-01T00:00:00Z", note: null },
 ];
