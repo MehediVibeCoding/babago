@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import type { Student, Batch, Payment, StudentStatus, PaymentMethod } from "@/lib/types";
+import type { Student, Batch, Payment, StudentStatus } from "@/lib/types";
 import {
   createStudent,
   updateStudent,
@@ -10,7 +10,6 @@ import {
   updateStudentStatus,
   type StudentInput,
 } from "@/app/actions/students";
-import { recordPayment } from "@/app/actions/payments";
 import { useToast } from "@/components/admin/Toast";
 import Modal from "@/components/admin/Modal";
 import {
@@ -23,8 +22,8 @@ import {
   Select,
   EmptyState,
 } from "@/components/admin/ui";
-import { dueMonthsForStudent, formatTaka } from "@/lib/utils";
-import { toBengaliDigits, formatBengaliDate, BENGALI_MONTHS } from "@/lib/bengaliNumerals";
+import { dueMonthsForStudent, totalPaidByStudent, formatTaka } from "@/lib/utils";
+import { toBengaliDigits } from "@/lib/bengaliNumerals";
 
 const GROUPS = ["বিজ্ঞান বিভাগ", "মানবিক বিভাগ", "ব্যবসায় শিক্ষা বিভাগ"];
 
@@ -40,66 +39,10 @@ const EMPTY_FORM: StudentInput = {
   status: "confirmed",
 };
 
-// বিগত ৬ মাস ও আগামী ৪ মাসের তালিকা
-function getMonthOptions() {
-  const options: { value: string; label: string }[] = [];
-  const now = new Date();
-  for (let i = -6; i <= 4; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-    const label = `${BENGALI_MONTHS[d.getMonth()]} ${toBengaliDigits(d.getFullYear())}`;
-    options.push({ value, label });
-  }
-  return options;
-}
-
-function getCurrentMonthValue() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-}
-
-// শিক্ষার্থীর সব পেমেন্ট বিশ্লেষণ করে মোট টাকা ও কোন মাস থেকে কোন মাস তার হিসাব বের করা
-function getStudentPaymentSummary(studentId: string, payments: Payment[]) {
-  const studentPays = payments.filter((p) => p.student_id === studentId);
-  const totalAmount = studentPays.reduce((sum, p) => sum + p.amount, 0);
-
-  // ইউনিক ও ক্রমানুসারে সাজানো মাস
-  const sortedMonths = Array.from(new Set(studentPays.map((p) => p.for_month.slice(0, 7)))).sort(
-    (a, b) => a.localeCompare(b)
-  );
-
-  if (sortedMonths.length === 0) {
-    return {
-      totalAmount: 0,
-      count: 0,
-      rangeLabel: "কোনো পেমেন্ট নেই",
-      monthsList: [],
-    };
-  }
-
-  const firstDate = new Date(sortedMonths[0] + "-01");
-  const lastDate = new Date(sortedMonths[sortedMonths.length - 1] + "-01");
-
-  const firstLabel = `${BENGALI_MONTHS[firstDate.getMonth()]} '${toBengaliDigits(firstDate.getFullYear()).slice(-2)}`;
-  const lastLabel = `${BENGALI_MONTHS[lastDate.getMonth()]} '${toBengaliDigits(lastDate.getFullYear()).slice(-2)}`;
-
-  const rangeLabel =
-    sortedMonths.length === 1
-      ? `${firstLabel} (১ মাস)`
-      : `${firstLabel} – ${lastLabel} (${toBengaliDigits(sortedMonths.length)} মাস)`;
-
-  return {
-    totalAmount,
-    count: sortedMonths.length,
-    rangeLabel,
-    monthsList: studentPays,
-  };
-}
-
 export default function StudentsPageClient({
   initialStudents,
   batches,
-  payments: initialPayments,
+  payments,
 }: {
   initialStudents: Student[];
   batches: Batch[];
@@ -109,7 +52,6 @@ export default function StudentsPageClient({
   const { show: showToast } = useToast();
 
   const [students, setStudents] = useState<Student[]>(initialStudents);
-  const [payments, setPayments] = useState<Payment[]>(initialPayments);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [batchFilter, setBatchFilter] = useState<string>("all");
@@ -124,18 +66,6 @@ export default function StudentsPageClient({
   // ডিলিট স্টেট
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
   const [deleting, setDeleting] = useState(false);
-
-  // সরাসরি রো থেকে দ্রুত বেতন গ্রহণের মোডাল
-  const [quickPayStudent, setQuickPayStudent] = useState<Student | null>(null);
-  const [quickPayForm, setQuickPayForm] = useState({
-    amount: 1200,
-    method: "cash" as PaymentMethod,
-    for_month: getCurrentMonthValue(),
-    note: "",
-  });
-  const [recordingPay, setRecordingPay] = useState(false);
-
-  const monthOptions = useMemo(() => getMonthOptions(), []);
 
   useEffect(() => {
     if (searchParams.get("filter") === "due") {
@@ -167,12 +97,6 @@ export default function StudentsPageClient({
     });
   }, [students, search, statusFilter, batchFilter, dueOnly, payments]);
 
-  // নির্বাচিত শিক্ষার্থীর পেমেন্ট সারাংশ
-  const quickPaySummary = useMemo(() => {
-    if (!quickPayStudent) return null;
-    return getStudentPaymentSummary(quickPayStudent.id, payments);
-  }, [payments, quickPayStudent]);
-
   function openAddModal() {
     setEditingStudent(null);
     setFormData({
@@ -197,20 +121,6 @@ export default function StudentsPageClient({
       status: student.status,
     });
     setModalOpen(true);
-  }
-
-  // দ্রুত বেতন গ্রহণ মোডাল খোলা
-  function openQuickPayModal(student: Student) {
-    setQuickPayStudent(student);
-    let defaultAmount = 1200;
-    if (student.batch_name_snapshot?.includes("Combine")) defaultAmount = 2000;
-
-    setQuickPayForm({
-      amount: defaultAmount,
-      method: "cash",
-      for_month: getCurrentMonthValue(),
-      note: "অফিসে সরাসরি জমা",
-    });
   }
 
   function handleBatchChange(batchId: string) {
@@ -250,44 +160,6 @@ export default function StudentsPageClient({
       } else {
         showToast(res.message || "ভর্তি সম্পন্ন করা যায়নি।", "error");
       }
-    }
-  }
-
-  // নতুন বেতন জমা দেওয়া
-  async function handleQuickPaySubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!quickPayStudent) return;
-    if (!quickPayForm.amount || quickPayForm.amount <= 0) {
-      showToast("সঠিক টাকার পরিমাণ দিন।", "error");
-      return;
-    }
-
-    setRecordingPay(true);
-    const res = await recordPayment({
-      student_id: quickPayStudent.id,
-      amount: quickPayForm.amount,
-      method: quickPayForm.method,
-      for_month: quickPayForm.for_month,
-      note: quickPayForm.note,
-    });
-    setRecordingPay(false);
-
-    if (res.ok && res.payment) {
-      // পেমেন্ট লিস্টে নতুন রেকর্ড যোগ (যাতে রিয়েলটাইমে মোট টাকা ও মাসের রেঞ্জ আপডেট হয়)
-      setPayments((prev) => [res.payment!, ...prev]);
-
-      // যদি শিক্ষার্থী পেন্ডিং থাকে, বেতন নেওয়ার পর স্বয়ংক্রিয়ভাবে কনফার্মড হয়ে যাবে
-      if (quickPayStudent.status === "pending") {
-        await updateStudentStatus(quickPayStudent.id, "confirmed");
-        setStudents((prev) =>
-          prev.map((s) => (s.id === quickPayStudent.id ? { ...s, status: "confirmed" } : s))
-        );
-      }
-
-      showToast(`${quickPayStudent.full_name}-এর বেতন সফলভাবে জমা হয়েছে!`, "success");
-      setQuickPayStudent(null);
-    } else {
-      showToast(res.message || "বেতন জমা করা যায়নি।", "error");
     }
   }
 
@@ -409,14 +281,14 @@ export default function StudentsPageClient({
       {/* স্টুডেন্ট টেবিল */}
       <div className="overflow-hidden rounded-[24px] border border-border-base/80 bg-white shadow-sh2">
         <div className="sleek-scrollbar overflow-x-auto">
-          <table className="w-full min-w-[960px] text-left">
+          <table className="w-full min-w-[860px] text-left">
             <thead>
               <tr className="border-b border-border-base bg-[#F8FAFC] font-body text-[11px] font-extrabold uppercase tracking-wider text-muted">
                 <th className="py-3.5 pl-4 pr-3">শিক্ষার্থী</th>
                 <th className="p-3.5">কলেজ ও রোল</th>
                 <th className="p-3.5">ব্যাচ</th>
                 <th className="p-3.5">মোবাইল নম্বর</th>
-                <th className="p-3.5">পরিশোধিত বেতন ও সময়কাল</th>
+                <th className="p-3.5">মোট ফি প্রদান</th>
                 <th className="p-3.5">বকেয়া</th>
                 <th className="p-3.5">স্ট্যাটাস</th>
                 <th className="p-3.5 pr-4 text-right">অ্যাকশন</th>
@@ -435,7 +307,7 @@ export default function StudentsPageClient({
               ) : (
                 filteredStudents.map((s) => {
                   const dueMonths = dueMonthsForStudent(s, payments);
-                  const paySummary = getStudentPaymentSummary(s.id, payments);
+                  const totalPaid = totalPaidByStudent(s.id, payments);
 
                   return (
                     <tr
@@ -486,14 +358,9 @@ export default function StudentsPageClient({
                         )}
                       </td>
 
-                      {/* 💰 মোট ফি ও পরিশোধিত মাসের রেঞ্জ */}
-                      <td className="p-3">
-                        <p className="font-black text-[14px] text-emerald-700">
-                          {formatTaka(paySummary.totalAmount)}
-                        </p>
-                        <p className="font-body text-[11px] font-semibold text-sky-900/80">
-                          {paySummary.rangeLabel}
-                        </p>
+                      {/* মোট দেওয়া ফি */}
+                      <td className="whitespace-nowrap p-3 font-black text-emerald-700">
+                        {formatTaka(totalPaid)}
                       </td>
 
                       {/* বকেয়া মাস */}
@@ -528,28 +395,18 @@ export default function StudentsPageClient({
                         </Badge>
                       </td>
 
-                      {/* ⚡ অ্যাকশন বাটনস (সর্বদা দৃশ্যমান + ৳ বেতন বাটন) */}
+                      {/* অ্যাকশন বাটনস */}
                       <td className="whitespace-nowrap p-3 pr-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {/* সরাসরি বেতন নেওয়ার আকর্ষণীয় বাটন */}
-                          <button
-                            type="button"
-                            onClick={() => openQuickPayModal(s)}
-                            className="inline-flex items-center gap-1 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-3 py-1.5 font-body text-[11.5px] font-black text-white shadow-xs transition-all hover:brightness-105 active:scale-95"
-                            title="নতুন মাসের বেতন জমা নিন"
-                          >
-                            <span>+ ৳ বেতন</span>
-                          </button>
-
-                          {/* পেন্ডিং থাকলে কনফার্ম বাটন */}
+                          {/* পেন্ডিং শিক্ষার্থীকে এক ক্লিকে কনফার্ম করা */}
                           {s.status === "pending" && (
                             <button
                               type="button"
                               onClick={() => handleStatusToggle(s, "confirmed")}
                               title="ভর্তি নিশ্চিত করুন"
-                              className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2 py-1 font-body text-[11px] font-bold text-emerald-800 hover:bg-emerald-100"
+                              className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 font-body text-[11px] font-bold text-emerald-800 hover:bg-emerald-100"
                             >
-                              ✓
+                              ✓ কনফার্ম
                             </button>
                           )}
 
@@ -558,7 +415,7 @@ export default function StudentsPageClient({
                             type="button"
                             onClick={() => openEditModal(s)}
                             className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-base/80 bg-white text-ink-800 transition-colors hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
-                            title="তথ্য সম্পাদনা"
+                            title="সম্পাদনা করুন"
                           >
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
@@ -586,132 +443,6 @@ export default function StudentsPageClient({
           </table>
         </div>
       </div>
-
-      {/* 🚀 নির্দিষ্ট শিক্ষার্থীর বেতন জমা ও হিস্ট্রি মোডাল */}
-      <Modal
-        open={!!quickPayStudent}
-        onClose={() => setQuickPayStudent(null)}
-        title={`বেতন জমা — ${quickPayStudent?.full_name || ""}`}
-        description={`${quickPayStudent?.batch_name_snapshot || ""} · মোবাইল: ${quickPayStudent?.phone || ""}`}
-      >
-        {quickPayStudent && quickPaySummary && (
-          <div className="space-y-4">
-            {/* পূর্বের পেমেন্ট হিস্ট্রি কার্ড */}
-            <div className="rounded-2xl border border-sky-200/80 bg-sky-50/70 p-4">
-              <div className="flex items-center justify-between border-b border-sky-200/60 pb-2">
-                <span className="font-body text-[12px] font-black uppercase tracking-wider text-sky-950">
-                  পরিশোধিত সময়কাল:
-                </span>
-                <span className="font-body text-[13px] font-black text-emerald-800">
-                  মোট জমা: {formatTaka(quickPaySummary.totalAmount)}
-                </span>
-              </div>
-
-              <div className="mt-2.5">
-                <p className="mb-1.5 font-body text-[11.5px] font-bold text-sky-900">
-                  পরিশোধিত মাসসমূহ ({toBengaliDigits(quickPaySummary.count)}টি):
-                </p>
-                {quickPaySummary.monthsList.length === 0 ? (
-                  <p className="font-body text-[11.5px] text-muted">এখনো কোনো মাসের পেমেন্ট রেকর্ড নেই।</p>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5 max-h-[85px] overflow-y-auto sleek-scrollbar">
-                    {quickPaySummary.monthsList.map((p) => {
-                      const mDate = new Date(p.for_month);
-                      const label = !isNaN(mDate.getTime())
-                        ? `${BENGALI_MONTHS[mDate.getMonth()]} ${toBengaliDigits(mDate.getFullYear())}`
-                        : p.for_month;
-                      return (
-                        <span
-                          key={p.id}
-                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-2.5 py-1 font-body text-[11px] font-bold text-emerald-800 shadow-2xs"
-                          title={`${formatBengaliDate(p.created_at.slice(0, 10))} তারিখে ${p.method === "cash" ? "নগদে" : "অনলাইনে"} জমা`}
-                        >
-                          <span>✓ {label}</span>
-                          <span className="text-muted font-normal">({formatTaka(p.amount)})</span>
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* নতুন মাসের পেমেন্ট গ্রহণ ফরম */}
-            <form onSubmit={handleQuickPaySubmit} className="space-y-3.5 border-t border-border-base/60 pt-2">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="যে মাসের বেতন নিচ্ছেন *" required>
-                  <Select
-                    value={quickPayForm.for_month}
-                    onChange={(e) => setQuickPayForm({ ...quickPayForm, for_month: e.target.value })}
-                  >
-                    {monthOptions.map((m) => (
-                      <option key={m.value} value={m.value}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-
-                <Field label="টাকার পরিমাণ (৳) *" required>
-                  <TextInput
-                    type="number"
-                    required
-                    min={100}
-                    step={50}
-                    value={quickPayForm.amount}
-                    onChange={(e) => setQuickPayForm({ ...quickPayForm, amount: Number(e.target.value) })}
-                  />
-                </Field>
-              </div>
-
-              <Field label="পেমেন্টের মাধ্যম *" required>
-                <div className="flex gap-4 pt-1">
-                  <label className="flex cursor-pointer items-center gap-2 font-body text-[13px] font-bold text-ink-800">
-                    <input
-                      type="radio"
-                      name="quick_method"
-                      value="cash"
-                      checked={quickPayForm.method === "cash"}
-                      onChange={() => setQuickPayForm({ ...quickPayForm, method: "cash" })}
-                      className="h-4 w-4 text-sky-600 focus:ring-sky-600"
-                    />
-                    <span>💵 নগদ / ক্যাশ (অফিসে জমা)</span>
-                  </label>
-
-                  <label className="flex cursor-pointer items-center gap-2 font-body text-[13px] font-bold text-ink-800">
-                    <input
-                      type="radio"
-                      name="quick_method"
-                      value="online"
-                      checked={quickPayForm.method === "online"}
-                      onChange={() => setQuickPayForm({ ...quickPayForm, method: "online" })}
-                      className="h-4 w-4 text-sky-600 focus:ring-sky-600"
-                    />
-                    <span>🌐 অনলাইন / bKash</span>
-                  </label>
-                </div>
-              </Field>
-
-              <Field label="মন্তব্য / নোট (ঐচ্ছিক)">
-                <TextInput
-                  placeholder="যেমন: অফিসে সরাসরি জমা / রসিদ নং"
-                  value={quickPayForm.note}
-                  onChange={(e) => setQuickPayForm({ ...quickPayForm, note: e.target.value })}
-                />
-              </Field>
-
-              <div className="mt-5 flex justify-end gap-2 border-t border-border-base/60 pt-4">
-                <SecondaryButton type="button" onClick={() => setQuickPayStudent(null)}>
-                  বাতিল
-                </SecondaryButton>
-                <PrimaryButton type="submit" disabled={recordingPay}>
-                  {recordingPay ? "জমা হচ্ছে..." : "✓ বেতন গ্রহণ নিশ্চিত করুন"}
-                </PrimaryButton>
-              </div>
-            </form>
-          </div>
-        )}
-      </Modal>
 
       {/* ভর্তি / এডিট মোডাল */}
       <Modal
