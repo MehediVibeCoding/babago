@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { logout } from "@/app/actions/auth";
 
 interface NavItem {
   href: string;
@@ -212,24 +213,27 @@ export default function Sidebar() {
             })}
           </nav>
 
+          {/* ডেস্কটপ লগআউট বাটন */}
           <div className="border-t border-border-base/60 p-2.5">
-            <button
-              type="button"
-              title={!isHovered ? "লগআউট" : undefined}
-              className={cn(
-                "group flex h-[42px] w-full items-center rounded-[14px] font-body text-[12.5px] font-bold text-danger/80 transition-all duration-brand hover:bg-rose-50 hover:text-danger",
-                isHovered ? "justify-start gap-3 px-3.5" : "justify-center px-0"
-              )}
-            >
-              <NavIcon className="h-5 w-5 text-danger/70 group-hover:text-danger">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </NavIcon>
-              <span className={cn("whitespace-nowrap transition-all duration-200", isHovered ? "w-auto opacity-100" : "w-0 overflow-hidden opacity-0")}>
-                লগআউট
-              </span>
-            </button>
+            <form action={logout}>
+              <button
+                type="submit"
+                title={!isHovered ? "লগআউট" : undefined}
+                className={cn(
+                  "group flex h-[42px] w-full items-center rounded-[14px] font-body text-[12.5px] font-bold text-danger/80 transition-all duration-brand hover:bg-rose-50 hover:text-danger",
+                  isHovered ? "justify-start gap-3 px-3.5" : "justify-center px-0"
+                )}
+              >
+                <NavIcon className="h-5 w-5 text-danger/70 group-hover:text-danger">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </NavIcon>
+                <span className={cn("whitespace-nowrap transition-all duration-200", isHovered ? "w-auto opacity-100" : "w-0 overflow-hidden opacity-0")}>
+                  লগআউট
+                </span>
+              </button>
+            </form>
           </div>
         </aside>
       </div>
@@ -316,18 +320,22 @@ export default function Sidebar() {
             );
           })}
         </nav>
+        
+        {/* মোবাইল ড্রয়ার লগআউট বাটন */}
         <div className="border-t border-border-base/60 pt-2">
-          <button
-            type="button"
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-rose-50 py-2.5 font-body text-[13px] font-bold text-danger transition-colors hover:bg-rose-100"
-          >
-            <NavIcon className="h-4 w-4">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </NavIcon>
-            লগআউট
-          </button>
+          <form action={logout} onClick={() => setMobileOpen(false)}>
+            <button
+              type="submit"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-rose-50 py-2.5 font-body text-[13px] font-bold text-danger transition-colors hover:bg-rose-100"
+            >
+              <NavIcon className="h-4 w-4">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </NavIcon>
+              লগআউট
+            </button>
+          </form>
         </div>
       </div>
     </>
