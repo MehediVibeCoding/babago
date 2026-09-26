@@ -23,7 +23,7 @@ import {
   Select,
   EmptyState,
 } from "@/components/admin/ui";
-import { dueMonthsForStudent, totalPaidByStudent, formatTaka } from "@/lib/utils";
+import { dueMonthsForStudent, formatTaka } from "@/lib/utils";
 import { toBengaliDigits, formatBengaliDate, BENGALI_MONTHS } from "@/lib/bengaliNumerals";
 
 const GROUPS = ["বিজ্ঞান বিভাগ", "মানবিক বিভাগ", "ব্যবসায় শিক্ষা বিভাগ"];
@@ -40,11 +40,11 @@ const EMPTY_FORM: StudentInput = {
   status: "confirmed",
 };
 
-// মাসের অপশন তালিকা
+// বিগত ৬ মাস ও আগামী ৪ মাসের তালিকা
 function getMonthOptions() {
   const options: { value: string; label: string }[] = [];
   const now = new Date();
-  for (let i = -6; i <= 3; i++) {
+  for (let i = -6; i <= 4; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
     const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
     const label = `${BENGALI_MONTHS[d.getMonth()]} ${toBengaliDigits(d.getFullYear())}`;
@@ -56,6 +56,44 @@ function getMonthOptions() {
 function getCurrentMonthValue() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+// শিক্ষার্থীর সব পেমেন্ট বিশ্লেষণ করে মোট টাকা ও কোন মাস থেকে কোন মাস তার হিসাব বের করা
+function getStudentPaymentSummary(studentId: string, payments: Payment[]) {
+  const studentPays = payments.filter((p) => p.student_id === studentId);
+  const totalAmount = studentPays.reduce((sum, p) => sum + p.amount, 0);
+
+  // ইউনিক ও ক্রমানুসারে সাজানো মাস
+  const sortedMonths = Array.from(new Set(studentPays.map((p) => p.for_month.slice(0, 7)))).sort(
+    (a, b) => a.localeCompare(b)
+  );
+
+  if (sortedMonths.length === 0) {
+    return {
+      totalAmount: 0,
+      count: 0,
+      rangeLabel: "কোনো পেমেন্ট নেই",
+      monthsList: [],
+    };
+  }
+
+  const firstDate = new Date(sortedMonths[0] + "-01");
+  const lastDate = new Date(sortedMonths[sortedMonths.length - 1] + "-01");
+
+  const firstLabel = `${BENGALI_MONTHS[firstDate.getMonth()]} '${toBengaliDigits(firstDate.getFullYear()).slice(-2)}`;
+  const lastLabel = `${BENGALI_MONTHS[lastDate.getMonth()]} '${toBengaliDigits(lastDate.getFullYear()).slice(-2)}`;
+
+  const rangeLabel =
+    sortedMonths.length === 1
+      ? `${firstLabel} (১ মাস)`
+      : `${firstLabel} – ${lastLabel} (${toBengaliDigits(sortedMonths.length)} মাস)`;
+
+  return {
+    totalAmount,
+    count: sortedMonths.length,
+    rangeLabel,
+    monthsList: studentPays,
+  };
 }
 
 export default function StudentsPageClient({
@@ -77,7 +115,7 @@ export default function StudentsPageClient({
   const [batchFilter, setBatchFilter] = useState<string>("all");
   const [dueOnly, setDueOnly] = useState(false);
 
-  // ভর্তি/এডিট মোডাল স্টেট
+  // ভর্তি/এডিট মোডাল
   const [modalOpen, setModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [formData, setFormData] = useState<StudentInput>(EMPTY_FORM);
@@ -87,7 +125,7 @@ export default function StudentsPageClient({
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // সরাসরি রো থেকে দ্রুত বেতন গ্রহণের মোডাল স্টেট
+  // সরাসরি রো থেকে দ্রুত বেতন গ্রহণের মোডাল
   const [quickPayStudent, setQuickPayStudent] = useState<Student | null>(null);
   const [quickPayForm, setQuickPayForm] = useState({
     amount: 1200,
@@ -99,7 +137,6 @@ export default function StudentsPageClient({
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
 
-  // URL থেকে `?filter=due` হ্যান্ডেল করা
   useEffect(() => {
     if (searchParams.get("filter") === "due") {
       setDueOnly(true);
@@ -130,10 +167,10 @@ export default function StudentsPageClient({
     });
   }, [students, search, statusFilter, batchFilter, dueOnly, payments]);
 
-  // একজন নির্দিষ্ট শিক্ষার্থীর সব পেমেন্ট
-  const studentPayments = useMemo(() => {
-    if (!quickPayStudent) return [];
-    return payments.filter((p) => p.student_id === quickPayStudent.id);
+  // নির্বাচিত শিক্ষার্থীর পেমেন্ট সারাংশ
+  const quickPaySummary = useMemo(() => {
+    if (!quickPayStudent) return null;
+    return getStudentPaymentSummary(quickPayStudent.id, payments);
   }, [payments, quickPayStudent]);
 
   function openAddModal() {
@@ -162,7 +199,7 @@ export default function StudentsPageClient({
     setModalOpen(true);
   }
 
-  // সরাসরি রো থেকে বেতন গ্রহণ পপআপ খোলা
+  // দ্রুত বেতন গ্রহণ মোডাল খোলা
   function openQuickPayModal(student: Student) {
     setQuickPayStudent(student);
     let defaultAmount = 1200;
@@ -216,7 +253,7 @@ export default function StudentsPageClient({
     }
   }
 
-  // দ্রুত বেতন সাবমিট করা
+  // নতুন বেতন জমা দেওয়া
   async function handleQuickPaySubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!quickPayStudent) return;
@@ -236,7 +273,17 @@ export default function StudentsPageClient({
     setRecordingPay(false);
 
     if (res.ok && res.payment) {
+      // পেমেন্ট লিস্টে নতুন রেকর্ড যোগ (যাতে রিয়েলটাইমে মোট টাকা ও মাসের রেঞ্জ আপডেট হয়)
       setPayments((prev) => [res.payment!, ...prev]);
+
+      // যদি শিক্ষার্থী পেন্ডিং থাকে, বেতন নেওয়ার পর স্বয়ংক্রিয়ভাবে কনফার্মড হয়ে যাবে
+      if (quickPayStudent.status === "pending") {
+        await updateStudentStatus(quickPayStudent.id, "confirmed");
+        setStudents((prev) =>
+          prev.map((s) => (s.id === quickPayStudent.id ? { ...s, status: "confirmed" } : s))
+        );
+      }
+
       showToast(`${quickPayStudent.full_name}-এর বেতন সফলভাবে জমা হয়েছে!`, "success");
       setQuickPayStudent(null);
     } else {
@@ -362,14 +409,14 @@ export default function StudentsPageClient({
       {/* স্টুডেন্ট টেবিল */}
       <div className="overflow-hidden rounded-[24px] border border-border-base/80 bg-white shadow-sh2">
         <div className="sleek-scrollbar overflow-x-auto">
-          <table className="w-full min-w-[920px] text-left">
+          <table className="w-full min-w-[960px] text-left">
             <thead>
               <tr className="border-b border-border-base bg-[#F8FAFC] font-body text-[11px] font-extrabold uppercase tracking-wider text-muted">
                 <th className="py-3.5 pl-4 pr-3">শিক্ষার্থী</th>
                 <th className="p-3.5">কলেজ ও রোল</th>
                 <th className="p-3.5">ব্যাচ</th>
                 <th className="p-3.5">মোবাইল নম্বর</th>
-                <th className="p-3.5">মোট ফি প্রদান</th>
+                <th className="p-3.5">পরিশোধিত বেতন ও সময়কাল</th>
                 <th className="p-3.5">বকেয়া</th>
                 <th className="p-3.5">স্ট্যাটাস</th>
                 <th className="p-3.5 pr-4 text-right">অ্যাকশন</th>
@@ -388,14 +435,14 @@ export default function StudentsPageClient({
               ) : (
                 filteredStudents.map((s) => {
                   const dueMonths = dueMonthsForStudent(s, payments);
-                  const totalPaid = totalPaidByStudent(s.id, payments);
+                  const paySummary = getStudentPaymentSummary(s.id, payments);
 
                   return (
                     <tr
                       key={s.id}
                       className="transition-colors odd:bg-white even:bg-[#F8FAFC]/70 hover:bg-sky-50/40"
                     >
-                      {/* নাম ও গ্রুপ */}
+                      {/* নাম ও বিভাগ */}
                       <td className="py-3 pl-4 pr-3">
                         <div className="flex items-center gap-2.5">
                           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-sky-600 font-body text-[13px] font-black text-white shadow-xs">
@@ -439,12 +486,17 @@ export default function StudentsPageClient({
                         )}
                       </td>
 
-                      {/* মোট দেওয়া ফি */}
-                      <td className="whitespace-nowrap p-3 font-black text-emerald-700">
-                        {formatTaka(totalPaid)}
+                      {/* 💰 মোট ফি ও পরিশোধিত মাসের রেঞ্জ */}
+                      <td className="p-3">
+                        <p className="font-black text-[14px] text-emerald-700">
+                          {formatTaka(paySummary.totalAmount)}
+                        </p>
+                        <p className="font-body text-[11px] font-semibold text-sky-900/80">
+                          {paySummary.rangeLabel}
+                        </p>
                       </td>
 
-                      {/* বকেয়া মাস */}
+                      {/* বকেয়া মাস */}
                       <td className="whitespace-nowrap p-3">
                         {s.status === "confirmed" && dueMonths > 0 ? (
                           <Badge tone={dueMonths >= 3 ? "danger" : "warn"}>
@@ -476,30 +528,28 @@ export default function StudentsPageClient({
                         </Badge>
                       </td>
 
-                      {/* অ্যাকশন বাটনস */}
+                      {/* ⚡ অ্যাকশন বাটনস (সর্বদা দৃশ্যমান + ৳ বেতন বাটন) */}
                       <td className="whitespace-nowrap p-3 pr-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {/* সরাসরি বেতন নেওয়ার নতুন বাটন (+ ৳) */}
-                          {s.status === "confirmed" && (
-                            <button
-                              type="button"
-                              onClick={() => openQuickPayModal(s)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 font-body text-[11.5px] font-black text-emerald-800 transition-all hover:bg-emerald-600 hover:text-white shadow-xs"
-                              title="বেতন গ্রহণ করুন"
-                            >
-                              <span>+ ৳ বেতন</span>
-                            </button>
-                          )}
+                          {/* সরাসরি বেতন নেওয়ার আকর্ষণীয় বাটন */}
+                          <button
+                            type="button"
+                            onClick={() => openQuickPayModal(s)}
+                            className="inline-flex items-center gap-1 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-3 py-1.5 font-body text-[11.5px] font-black text-white shadow-xs transition-all hover:brightness-105 active:scale-95"
+                            title="নতুন মাসের বেতন জমা নিন"
+                          >
+                            <span>+ ৳ বেতন</span>
+                          </button>
 
-                          {/* পেন্ডিং শিক্ষার্থীকে এক ক্লিকে কনফার্ম করা */}
+                          {/* পেন্ডিং থাকলে কনফার্ম বাটন */}
                           {s.status === "pending" && (
                             <button
                               type="button"
                               onClick={() => handleStatusToggle(s, "confirmed")}
                               title="ভর্তি নিশ্চিত করুন"
-                              className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 font-body text-[11px] font-bold text-emerald-800 hover:bg-emerald-100"
+                              className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2 py-1 font-body text-[11px] font-bold text-emerald-800 hover:bg-emerald-100"
                             >
-                              ✓ কনফার্ম
+                              ✓
                             </button>
                           )}
 
@@ -508,7 +558,7 @@ export default function StudentsPageClient({
                             type="button"
                             onClick={() => openEditModal(s)}
                             className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-base/80 bg-white text-ink-800 transition-colors hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
-                            title="সম্পাদনা করুন"
+                            title="তথ্য সম্পাদনা"
                           >
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
@@ -544,47 +594,52 @@ export default function StudentsPageClient({
         title={`বেতন জমা — ${quickPayStudent?.full_name || ""}`}
         description={`${quickPayStudent?.batch_name_snapshot || ""} · মোবাইল: ${quickPayStudent?.phone || ""}`}
       >
-        {quickPayStudent && (
+        {quickPayStudent && quickPaySummary && (
           <div className="space-y-4">
             {/* পূর্বের পেমেন্ট হিস্ট্রি কার্ড */}
-            <div className="rounded-2xl border border-sky-200/80 bg-sky-50/60 p-3.5">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="font-body text-[11.5px] font-black uppercase tracking-wider text-sky-900">
-                  ইতিমধ্যে পরিশোধিত মাসসমূহ ({toBengaliDigits(studentPayments.length)}টি):
+            <div className="rounded-2xl border border-sky-200/80 bg-sky-50/70 p-4">
+              <div className="flex items-center justify-between border-b border-sky-200/60 pb-2">
+                <span className="font-body text-[12px] font-black uppercase tracking-wider text-sky-950">
+                  পরিশোধিত সময়কাল:
                 </span>
-                <span className="font-body text-[11.5px] font-black text-emerald-800">
-                  মোট: {formatTaka(totalPaidByStudent(quickPayStudent.id, payments))}
+                <span className="font-body text-[13px] font-black text-emerald-800">
+                  মোট জমা: {formatTaka(quickPaySummary.totalAmount)}
                 </span>
               </div>
 
-              {studentPayments.length === 0 ? (
-                <p className="py-1 font-body text-[11.5px] text-muted">এখনো কোনো মাসের পেমেন্ট রেকর্ড নেই।</p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5 max-h-[90px] overflow-y-auto sleek-scrollbar">
-                  {studentPayments.map((p) => {
-                    const mDate = new Date(p.for_month);
-                    const label = !isNaN(mDate.getTime())
-                      ? `${BENGALI_MONTHS[mDate.getMonth()]} ${toBengaliDigits(mDate.getFullYear())}`
-                      : p.for_month;
-                    return (
-                      <span
-                        key={p.id}
-                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-2 py-0.5 font-body text-[10.5px] font-bold text-emerald-800"
-                        title={`${formatBengaliDate(p.created_at.slice(0, 10))} তারিখে ${p.method === "cash" ? "নগদে" : "অনলাইনে"} জমা`}
-                      >
-                        <span>✓ {label}</span>
-                        <span className="text-muted font-normal">({formatTaka(p.amount)})</span>
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
+              <div className="mt-2.5">
+                <p className="mb-1.5 font-body text-[11.5px] font-bold text-sky-900">
+                  পরিশোধিত মাসসমূহ ({toBengaliDigits(quickPaySummary.count)}টি):
+                </p>
+                {quickPaySummary.monthsList.length === 0 ? (
+                  <p className="font-body text-[11.5px] text-muted">এখনো কোনো মাসের পেমেন্ট রেকর্ড নেই।</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5 max-h-[85px] overflow-y-auto sleek-scrollbar">
+                    {quickPaySummary.monthsList.map((p) => {
+                      const mDate = new Date(p.for_month);
+                      const label = !isNaN(mDate.getTime())
+                        ? `${BENGALI_MONTHS[mDate.getMonth()]} ${toBengaliDigits(mDate.getFullYear())}`
+                        : p.for_month;
+                      return (
+                        <span
+                          key={p.id}
+                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-2.5 py-1 font-body text-[11px] font-bold text-emerald-800 shadow-2xs"
+                          title={`${formatBengaliDate(p.created_at.slice(0, 10))} তারিখে ${p.method === "cash" ? "নগদে" : "অনলাইনে"} জমা`}
+                        >
+                          <span>✓ {label}</span>
+                          <span className="text-muted font-normal">({formatTaka(p.amount)})</span>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* নতুন মাসের পেমেন্ট গ্রহণ ফরম */}
-            <form onSubmit={handleQuickPaySubmit} className="space-y-3.5 border-t border-border-base/60 pt-3">
+            <form onSubmit={handleQuickPaySubmit} className="space-y-3.5 border-t border-border-base/60 pt-2">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="যে মাসের বেতন *" required>
+                <Field label="যে মাসের বেতন নিচ্ছেন *" required>
                   <Select
                     value={quickPayForm.for_month}
                     onChange={(e) => setQuickPayForm({ ...quickPayForm, for_month: e.target.value })}
