@@ -1,0 +1,128 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* মূল সাইটের app/globals.css থেকে হুবহু কপি — টোকেন সিঙ্ক রাখতে হবে */
+  --font-display: "Playfair Display";
+  --font-dm-sans: "DM Sans";
+  --font-bengali: "Hind Siliguri";
+
+  --sky-950: #0a1f33;
+  --sky-700: #0369a1;
+  --sky-600: #0284c7;
+  --sky-400: #38bdf8;
+  --sky-100: #f0f7ff;
+  --cloud-50: #f8fafc;
+  --ink-800: #1e293b;
+
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-border: rgba(226, 232, 240, 0.8);
+  --glass-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+
+  --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--cloud-50);
+  color: var(--ink-800);
+  font-family: var(--font-dm-sans), "Noto Sans Bengali", var(--font-bengali), system-ui, sans-serif;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-dm-sans), "Noto Sans Bengali", var(--font-bengali), system-ui, sans-serif;
+  font-weight: 700;
+  color: var(--sky-950);
+}
+
+.font-display {
+  font-family: var(--font-display), var(--font-bengali), system-ui, serif;
+}
+
+/* গ্লাস প্যানেল — মূল সাইটের মতোই */
+.glass-panel {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: var(--glass-shadow);
+  border-radius: 1rem;
+}
+
+.glass-panel-premium {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  border-radius: 1.25rem;
+}
+
+.sky-gradient {
+  background: radial-gradient(circle at 50% 0%, #e0f2fe 0%, #f1f8fe 40%, var(--cloud-50) 100%);
+}
+
+.btn-glow {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  transition: background-color 0.2s ease, transform 0.15s var(--ease-premium), box-shadow 0.15s ease;
+}
+.btn-glow:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+}
+.btn-glow:active {
+  transform: translateY(0);
+}
+
+.hover-lift {
+  transition: transform 0.2s var(--ease-premium), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px -2px rgba(0, 0, 0, 0.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-glow:hover, .hover-lift:hover { transform: none; }
+  html { scroll-behavior: auto; }
+}
+
+:focus-visible {
+  outline: 2px solid var(--sky-600);
+  outline-offset: 2px;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+}
+
+/* অ্যাডমিন-শুধু: চিকন কাস্টম স্ক্রলবার (সাইডবার/মোডাল লিস্টে) */
+.sleek-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.sleek-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(2, 132, 199, 0.18);
+  border-radius: 999px;
+}
+.sleek-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* অ্যাডমিন-শুধু: টেবিল রো হোভার + জেব্রা */
+.admin-table tbody tr:nth-child(even) {
+  background: rgba(241, 245, 249, 0.5);
+}
+.admin-table tbody tr:hover {
+  background: rgba(224, 242, 254, 0.6);
+}
