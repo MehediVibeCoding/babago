@@ -1,13 +1,3 @@
-// ══════════════════════════════════════════════════════════════════════
-// এই টাইপগুলো ahsans-learning-academy Supabase প্রজেক্টের প্রকৃত টেবিল স্কিমা
-// (batches, students, payments, blog_posts, class_diary_entries) থেকে হুবহু
-// মিলিয়ে বানানো — যাতে ব্যাকএন্ড যুক্ত করার সময় শুধু ডেটা-ফেচিং ফাংশনের ভেতরের
-// লজিক পাল্টালেই হয়, টাইপ/প্রপস পাল্টাতে হবে না।
-//
-// expenses / staff / salary_payments — এই তিনটা টেবিল এখনো ডাটাবেজে নেই,
-// এগুলো এই প্রজেক্টের জন্য প্রস্তাবিত নতুন টেবিল (দেখুন supabase/suggested_schema.sql)।
-// ══════════════════════════════════════════════════════════════════════
-
 export type Batch = {
   id: string;
   name: string;
@@ -35,8 +25,8 @@ export type Student = {
   phone: string;
   guardian_phone: string;
   status: StudentStatus;
-  monthly_fee: number; // ব্যাচ অনুযায়ী মাসিক বেতন — প্রকৃত DB-তে এটা batches টেবিলে বা students-এ যোগ করতে হবে
-  created_at: string; // ভর্তির তারিখ হিসেবে ব্যবহৃত হচ্ছে
+  monthly_fee: number;
+  created_at: string;
 };
 
 export type PaymentMethod = "online" | "cash";
@@ -59,7 +49,7 @@ export type BlogPost = {
   content: string;
   cover_image_url: string | null;
   published: boolean;
-  published_at: string;
+  published_at: string | null;
   created_at: string;
 };
 
@@ -74,15 +64,14 @@ export type ClassDiaryEntry = {
   created_at: string;
 };
 
-// --- প্রস্তাবিত নতুন টেবিল (এখনো ডাটাবেজে তৈরি হয়নি) ---
-
 export type ExpenseCategory =
   | "ভাড়া"
   | "বিদ্যুৎ বিল"
   | "প্রিন্টিং ও খাতাপত্র"
   | "মার্কেটিং"
-  | "স্টাফ বেতন"
+  | "আপ্যায়ন ও নাস্তা"
   | "রক্ষণাবেক্ষণ"
+  | "ব্যক্তিগত"
   | "অন্যান্য";
 
 export type Expense = {
@@ -95,21 +84,60 @@ export type Expense = {
   created_at: string;
 };
 
-export type Staff = {
+// ══════════════════════════════════════════════════════════════════════
+// 🌟 মেইন ওয়েবসাইটের ৫টি নতুন সেকশনের ডাটাবেজ টাইপ
+// ══════════════════════════════════════════════════════════════════════
+
+/** ১. রিয়েল ক্লাসরুম ও একাডেমি লাইফ গ্যালারি */
+export type ClassroomPhoto = {
   id: string;
-  full_name: string;
-  role: string;
-  phone: string;
-  monthly_salary: number;
-  joined_at: string;
-  is_active: boolean;
+  caption: string;
+  image_url: string;
+  sort_order: number;
+  created_at: string;
 };
 
-export type SalaryPayment = {
+/** ২. বিদায় সংবর্ধনা ও স্মৃতি অ্যালবাম */
+export type FarewellMemory = {
   id: string;
-  staff_id: string;
-  amount: number;
-  for_month: string;
-  paid_at: string;
-  note: string | null;
+  batch_tag: string; // যেমন: "HSC 2025 বিদায় সংবর্ধনা", "HSC 2026 বিদায় উৎসব", "ক্লাসরুম মোমেন্টস"
+  caption: string;
+  image_url: string;
+  sort_order: number;
+  created_at: string;
+};
+
+/** ৩. কৃতি শিক্ষার্থীদের দেয়াল (রেজাল্ট বোর্ড) */
+export type SuccessTopper = {
+  id: string;
+  name: string;
+  batch: string; // যেমন: "HSC 2025"
+  result: string; // যেমন: "GPA 5.00"
+  subject: string; // যেমন: "English A+, ICT A+"
+  college: string;
+  photo_url: string | null;
+  sort_order: number;
+  created_at: string;
+};
+
+/** ৪. সর্বশেষ ভিডিও লেকচার */
+export type VideoLecture = {
+  id: string;
+  title: string;
+  video_url: string; // YouTube / Embed link
+  thumbnail_url: string | null;
+  sort_order: number;
+  created_at: string;
+};
+
+/** ৫. শিক্ষার্থী ও অভিভাবকদের মতামত / রিভিউ */
+export type TestimonialItem = {
+  id: string;
+  name: string;
+  role_type: "শিক্ষার্থী" | "অভিভাবক";
+  batch_year: string; // যেমন: "HSC 2026"
+  quote: string;
+  is_featured: boolean; // হোমপেজের উপরের ৩টি কার্ডে দেখাবে কি না
+  sort_order: number;
+  created_at: string;
 };
