@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import type { Student, Batch, Payment, StudentStatus } from "@/lib/types";
+import { useSearchParams } from "next/navigation";
+import type { Student, Batch, Payment, StudentStatus, PaymentMethod } from "@/lib/types";
 import {
   createStudent,
   updateStudent,
@@ -10,6 +10,7 @@ import {
   updateStudentStatus,
   type StudentInput,
 } from "@/app/actions/students";
+import { recordPayment } from "@/app/actions/payments";
 import { useToast } from "@/components/admin/Toast";
 import Modal from "@/components/admin/Modal";
 import {
@@ -23,7 +24,7 @@ import {
   EmptyState,
 } from "@/components/admin/ui";
 import { dueMonthsForStudent, totalPaidByStudent, formatTaka } from "@/lib/utils";
-import { toBengaliDigits, formatBengaliDate } from "@/lib/bengaliNumerals";
+import { toBengaliDigits, formatBengaliDate, BENGALI_MONTHS } from "@/lib/bengaliNumerals";
 
 const GROUPS = ["বিজ্ঞান বিভাগ", "মানবিক বিভাগ", "ব্যবসায় শিক্ষা বিভাগ"];
 
@@ -39,26 +40,44 @@ const EMPTY_FORM: StudentInput = {
   status: "confirmed",
 };
 
+// মাসের অপশন তালিকা
+function getMonthOptions() {
+  const options: { value: string; label: string }[] = [];
+  const now = new Date();
+  for (let i = -6; i <= 3; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+    const label = `${BENGALI_MONTHS[d.getMonth()]} ${toBengaliDigits(d.getFullYear())}`;
+    options.push({ value, label });
+  }
+  return options;
+}
+
+function getCurrentMonthValue() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
 export default function StudentsPageClient({
   initialStudents,
   batches,
-  payments,
+  payments: initialPayments,
 }: {
   initialStudents: Student[];
   batches: Batch[];
   payments: Payment[];
 }) {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const { show: showToast } = useToast();
 
   const [students, setStudents] = useState<Student[]>(initialStudents);
+  const [payments, setPayments] = useState<Payment[]>(initialPayments);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [batchFilter, setBatchFilter] = useState<string>("all");
   const [dueOnly, setDueOnly] = useState(false);
 
-  // মোডাল ও অ্যাকশন স্টেট
+  // ভর্তি/এডিট মোডাল স্টেট
   const [modalOpen, setModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [formData, setFormData] = useState<StudentInput>(EMPTY_FORM);
@@ -67,6 +86,18 @@ export default function StudentsPageClient({
   // ডিলিট স্টেট
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // সরাসরি রো থেকে দ্রুত বেতন গ্রহণের মোডাল স্টেট
+  const [quickPayStudent, setQuickPayStudent] = useState<Student | null>(null);
+  const [quickPayForm, setQuickPayForm] = useState({
+    amount: 1200,
+    method: "cash" as PaymentMethod,
+    for_month: getCurrentMonthValue(),
+    note: "",
+  });
+  const [recordingPay, setRecordingPay] = useState(false);
+
+  const monthOptions = useMemo(() => getMonthOptions(), []);
 
   // URL থেকে `?filter=due` হ্যান্ডেল করা
   useEffect(() => {
@@ -78,11 +109,10 @@ export default function StudentsPageClient({
     }
   }, [searchParams]);
 
-  // ফিল্টার করা তালিকা
+  // ফিল্টার করা শিক্ষার্থী তালিকা
   const filteredStudents = useMemo(() => {
     const q = search.trim().toLowerCase();
     return students.filter((s) => {
-      // সার্চ ম্যাচ
       const matchSearch =
         !q ||
         s.full_name.toLowerCase().includes(q) ||
@@ -91,19 +121,20 @@ export default function StudentsPageClient({
         s.phone.includes(q) ||
         s.guardian_phone?.includes(q);
 
-      // স্ট্যাটাস ম্যাচ
       const matchStatus = statusFilter === "all" || s.status === statusFilter;
-
-      // ব্যাচ ম্যাচ
       const matchBatch = batchFilter === "all" || s.batch_id === batchFilter;
-
-      // বকেয়া ফিল্টার
       const dueMonths = dueMonthsForStudent(s, payments);
       const matchDue = !dueOnly || (s.status === "confirmed" && dueMonths > 0);
 
       return matchSearch && matchStatus && matchBatch && matchDue;
     });
   }, [students, search, statusFilter, batchFilter, dueOnly, payments]);
+
+  // একজন নির্দিষ্ট শিক্ষার্থীর সব পেমেন্ট
+  const studentPayments = useMemo(() => {
+    if (!quickPayStudent) return [];
+    return payments.filter((p) => p.student_id === quickPayStudent.id);
+  }, [payments, quickPayStudent]);
 
   function openAddModal() {
     setEditingStudent(null);
@@ -131,6 +162,20 @@ export default function StudentsPageClient({
     setModalOpen(true);
   }
 
+  // সরাসরি রো থেকে বেতন গ্রহণ পপআপ খোলা
+  function openQuickPayModal(student: Student) {
+    setQuickPayStudent(student);
+    let defaultAmount = 1200;
+    if (student.batch_name_snapshot?.includes("Combine")) defaultAmount = 2000;
+
+    setQuickPayForm({
+      amount: defaultAmount,
+      method: "cash",
+      for_month: getCurrentMonthValue(),
+      note: "অফিসে সরাসরি জমা",
+    });
+  }
+
   function handleBatchChange(batchId: string) {
     const selected = batches.find((b) => b.id === batchId);
     setFormData((prev) => ({
@@ -140,7 +185,7 @@ export default function StudentsPageClient({
     }));
   }
 
-  async function handleSave(e: React.FormEvent) {
+  async function handleSaveStudent(e: React.FormEvent) {
     e.preventDefault();
     if (!formData.full_name.trim() || !formData.phone.trim()) {
       showToast("শিক্ষার্থীর নাম ও মোবাইল নম্বর পূরণ করুন।", "error");
@@ -171,11 +216,39 @@ export default function StudentsPageClient({
     }
   }
 
+  // দ্রুত বেতন সাবমিট করা
+  async function handleQuickPaySubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!quickPayStudent) return;
+    if (!quickPayForm.amount || quickPayForm.amount <= 0) {
+      showToast("সঠিক টাকার পরিমাণ দিন।", "error");
+      return;
+    }
+
+    setRecordingPay(true);
+    const res = await recordPayment({
+      student_id: quickPayStudent.id,
+      amount: quickPayForm.amount,
+      method: quickPayForm.method,
+      for_month: quickPayForm.for_month,
+      note: quickPayForm.note,
+    });
+    setRecordingPay(false);
+
+    if (res.ok && res.payment) {
+      setPayments((prev) => [res.payment!, ...prev]);
+      showToast(`${quickPayStudent.full_name}-এর বেতন সফলভাবে জমা হয়েছে!`, "success");
+      setQuickPayStudent(null);
+    } else {
+      showToast(res.message || "বেতন জমা করা যায়নি।", "error");
+    }
+  }
+
   async function handleStatusToggle(student: Student, newStatus: StudentStatus) {
     const res = await updateStudentStatus(student.id, newStatus);
     if (res.ok) {
       setStudents((prev) => prev.map((s) => (s.id === student.id ? { ...s, status: newStatus } : s)));
-      showToast(`স্ট্যাটাস পরিবর্তন করা হয়েছে: ${newStatus}`, "info");
+      showToast(`স্ট্যাটাস পরিবর্তন হয়েছে: ${newStatus}`, "info");
     } else {
       showToast("স্ট্যাটাস পরিবর্তন ব্যর্থ হয়েছে।", "error");
     }
@@ -214,7 +287,6 @@ export default function StudentsPageClient({
       {/* সার্চ ও ফিল্টার বার */}
       <div className="mb-5 overflow-hidden rounded-[22px] border border-border-base/80 bg-white p-4 shadow-sh1 backdrop-blur-xl">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          {/* সার্চ ইনপুট */}
           <div className="relative min-w-[240px] flex-1">
             <svg
               viewBox="0 0 24 24"
@@ -246,7 +318,6 @@ export default function StudentsPageClient({
             )}
           </div>
 
-          {/* ড্রপডাউন ও টগল ফিল্টার */}
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={statusFilter}
@@ -272,7 +343,6 @@ export default function StudentsPageClient({
               ))}
             </select>
 
-            {/* বকেয়া ফিল্টার বাটন */}
             <button
               type="button"
               onClick={() => setDueOnly((v) => !v)}
@@ -292,7 +362,7 @@ export default function StudentsPageClient({
       {/* স্টুডেন্ট টেবিল */}
       <div className="overflow-hidden rounded-[24px] border border-border-base/80 bg-white shadow-sh2">
         <div className="sleek-scrollbar overflow-x-auto">
-          <table className="w-full min-w-[860px] text-left">
+          <table className="w-full min-w-[920px] text-left">
             <thead>
               <tr className="border-b border-border-base bg-[#F8FAFC] font-body text-[11px] font-extrabold uppercase tracking-wider text-muted">
                 <th className="py-3.5 pl-4 pr-3">শিক্ষার্থী</th>
@@ -409,6 +479,18 @@ export default function StudentsPageClient({
                       {/* অ্যাকশন বাটনস */}
                       <td className="whitespace-nowrap p-3 pr-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* সরাসরি বেতন নেওয়ার নতুন বাটন (+ ৳) */}
+                          {s.status === "confirmed" && (
+                            <button
+                              type="button"
+                              onClick={() => openQuickPayModal(s)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 font-body text-[11.5px] font-black text-emerald-800 transition-all hover:bg-emerald-600 hover:text-white shadow-xs"
+                              title="বেতন গ্রহণ করুন"
+                            >
+                              <span>+ ৳ বেতন</span>
+                            </button>
+                          )}
+
                           {/* পেন্ডিং শিক্ষার্থীকে এক ক্লিকে কনফার্ম করা */}
                           {s.status === "pending" && (
                             <button
@@ -455,6 +537,127 @@ export default function StudentsPageClient({
         </div>
       </div>
 
+      {/* 🚀 নির্দিষ্ট শিক্ষার্থীর বেতন জমা ও হিস্ট্রি মোডাল */}
+      <Modal
+        open={!!quickPayStudent}
+        onClose={() => setQuickPayStudent(null)}
+        title={`বেতন জমা — ${quickPayStudent?.full_name || ""}`}
+        description={`${quickPayStudent?.batch_name_snapshot || ""} · মোবাইল: ${quickPayStudent?.phone || ""}`}
+      >
+        {quickPayStudent && (
+          <div className="space-y-4">
+            {/* পূর্বের পেমেন্ট হিস্ট্রি কার্ড */}
+            <div className="rounded-2xl border border-sky-200/80 bg-sky-50/60 p-3.5">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="font-body text-[11.5px] font-black uppercase tracking-wider text-sky-900">
+                  ইতিমধ্যে পরিশোধিত মাসসমূহ ({toBengaliDigits(studentPayments.length)}টি):
+                </span>
+                <span className="font-body text-[11.5px] font-black text-emerald-800">
+                  মোট: {formatTaka(totalPaidByStudent(quickPayStudent.id, payments))}
+                </span>
+              </div>
+
+              {studentPayments.length === 0 ? (
+                <p className="py-1 font-body text-[11.5px] text-muted">এখনো কোনো মাসের পেমেন্ট রেকর্ড নেই।</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5 max-h-[90px] overflow-y-auto sleek-scrollbar">
+                  {studentPayments.map((p) => {
+                    const mDate = new Date(p.for_month);
+                    const label = !isNaN(mDate.getTime())
+                      ? `${BENGALI_MONTHS[mDate.getMonth()]} ${toBengaliDigits(mDate.getFullYear())}`
+                      : p.for_month;
+                    return (
+                      <span
+                        key={p.id}
+                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-2 py-0.5 font-body text-[10.5px] font-bold text-emerald-800"
+                        title={`${formatBengaliDate(p.created_at.slice(0, 10))} তারিখে ${p.method === "cash" ? "নগদে" : "অনলাইনে"} জমা`}
+                      >
+                        <span>✓ {label}</span>
+                        <span className="text-muted font-normal">({formatTaka(p.amount)})</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* নতুন মাসের পেমেন্ট গ্রহণ ফরম */}
+            <form onSubmit={handleQuickPaySubmit} className="space-y-3.5 border-t border-border-base/60 pt-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="যে মাসের বেতন *" required>
+                  <Select
+                    value={quickPayForm.for_month}
+                    onChange={(e) => setQuickPayForm({ ...quickPayForm, for_month: e.target.value })}
+                  >
+                    {monthOptions.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+
+                <Field label="টাকার পরিমাণ (৳) *" required>
+                  <TextInput
+                    type="number"
+                    required
+                    min={100}
+                    step={50}
+                    value={quickPayForm.amount}
+                    onChange={(e) => setQuickPayForm({ ...quickPayForm, amount: Number(e.target.value) })}
+                  />
+                </Field>
+              </div>
+
+              <Field label="পেমেন্টের মাধ্যম *" required>
+                <div className="flex gap-4 pt-1">
+                  <label className="flex cursor-pointer items-center gap-2 font-body text-[13px] font-bold text-ink-800">
+                    <input
+                      type="radio"
+                      name="quick_method"
+                      value="cash"
+                      checked={quickPayForm.method === "cash"}
+                      onChange={() => setQuickPayForm({ ...quickPayForm, method: "cash" })}
+                      className="h-4 w-4 text-sky-600 focus:ring-sky-600"
+                    />
+                    <span>💵 নগদ / ক্যাশ (অফিসে জমা)</span>
+                  </label>
+
+                  <label className="flex cursor-pointer items-center gap-2 font-body text-[13px] font-bold text-ink-800">
+                    <input
+                      type="radio"
+                      name="quick_method"
+                      value="online"
+                      checked={quickPayForm.method === "online"}
+                      onChange={() => setQuickPayForm({ ...quickPayForm, method: "online" })}
+                      className="h-4 w-4 text-sky-600 focus:ring-sky-600"
+                    />
+                    <span>🌐 অনলাইন / bKash</span>
+                  </label>
+                </div>
+              </Field>
+
+              <Field label="মন্তব্য / নোট (ঐচ্ছিক)">
+                <TextInput
+                  placeholder="যেমন: অফিসে সরাসরি জমা / রসিদ নং"
+                  value={quickPayForm.note}
+                  onChange={(e) => setQuickPayForm({ ...quickPayForm, note: e.target.value })}
+                />
+              </Field>
+
+              <div className="mt-5 flex justify-end gap-2 border-t border-border-base/60 pt-4">
+                <SecondaryButton type="button" onClick={() => setQuickPayStudent(null)}>
+                  বাতিল
+                </SecondaryButton>
+                <PrimaryButton type="submit" disabled={recordingPay}>
+                  {recordingPay ? "জমা হচ্ছে..." : "✓ বেতন গ্রহণ নিশ্চিত করুন"}
+                </PrimaryButton>
+              </div>
+            </form>
+          </div>
+        )}
+      </Modal>
+
       {/* ভর্তি / এডিট মোডাল */}
       <Modal
         open={modalOpen}
@@ -462,7 +665,7 @@ export default function StudentsPageClient({
         title={editingStudent ? "শিক্ষার্থীর তথ্য সম্পাদনা" : "নতুন শিক্ষার্থী ভর্তি ফরম"}
         description="শিক্ষার্থীর প্রয়োজনীয় একাডেমিক ও যোগাযোগের তথ্য পূরণ করুন।"
       >
-        <form onSubmit={handleSave} className="space-y-3.5">
+        <form onSubmit={handleSaveStudent} className="space-y-3.5">
           <Field label="শিক্ষার্থীর পূর্ণ নাম" required>
             <TextInput
               required
@@ -596,4 +799,4 @@ export default function StudentsPageClient({
       </Modal>
     </div>
   );
-    }
+}
