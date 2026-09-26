@@ -30,6 +30,7 @@ export interface QuickStudentAndPaymentInput {
   group_name?: string;
   batch_id?: string | null;
   batch_name_snapshot?: string | null;
+  created_at?: string; // 🎯 কাস্টম ভর্তির তারিখ (YYYY-MM-DD)
   amount: number;
   method: PaymentMethod;
   for_month: string;
@@ -95,7 +96,7 @@ export async function recordPayment(input: PaymentInput): Promise<PaymentActionR
   return { ok: true, payment: data as Payment };
 }
 
-// ৩. নতুন শিক্ষার্থী ভর্তি + সাথে সাথে প্রথম পেমেন্ট গ্রহণ (এক ক্লিকে)
+// ৩. নতুন শিক্ষার্থী ভর্তি + সাথে সাথে প্রথম পেমেন্ট গ্রহণ (কাস্টম ভর্তির তারিখ সহ)
 export async function recordNewStudentAndPayment(
   input: QuickStudentAndPaymentInput
 ): Promise<PaymentActionResult> {
@@ -107,19 +108,25 @@ export async function recordNewStudentAndPayment(
   if (!phone) return { ok: false, message: "মোবাইল নম্বর দিন।" };
   if (!input.amount || input.amount <= 0) return { ok: false, message: "বেতনের পরিমাণ দিন।" };
 
+  const studentInsert: Record<string, unknown> = {
+    full_name: name,
+    phone,
+    college: input.college?.trim() || "চৌদ্দগ্রাম সরকারি কলেজ",
+    college_roll: input.college_roll?.trim() || "",
+    group_name: input.group_name?.trim() || "বিজ্ঞান বিভাগ",
+    batch_id: input.batch_id || null,
+    batch_name_snapshot: input.batch_name_snapshot || null,
+    status: "confirmed",
+  };
+
+  if (input.created_at) {
+    studentInsert.created_at = new Date(input.created_at).toISOString();
+  }
+
   // প্রথমে শিক্ষার্থী তৈরি
   const { data: studentData, error: studentErr } = await supabase
     .from(STUDENTS_TABLE)
-    .insert({
-      full_name: name,
-      phone,
-      college: input.college?.trim() || "চৌদ্দগ্রাম সরকারি কলেজ",
-      college_roll: input.college_roll?.trim() || "",
-      group_name: input.group_name?.trim() || "বিজ্ঞান বিভাগ",
-      batch_id: input.batch_id || null,
-      batch_name_snapshot: input.batch_name_snapshot || null,
-      status: "confirmed",
-    })
+    .insert(studentInsert)
     .select()
     .single();
 
@@ -195,4 +202,4 @@ export async function deletePayment(id: string): Promise<PaymentActionResult> {
   revalidatePath("/students");
   revalidatePath("/");
   return { ok: true };
-                 }
+}
