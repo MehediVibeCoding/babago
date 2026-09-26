@@ -25,6 +25,10 @@ import {
 import { formatTaka, dueMonthsForStudent } from "@/lib/utils";
 import { toBengaliDigits, formatBengaliDate, BENGALI_MONTHS } from "@/lib/bengaliNumerals";
 
+function getTodayDateString() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 // বিগত ৬ মাস ও আগামী ৪ মাসের ড্রপডাউন
 function getMonthOptions() {
   const options: { value: string; label: string }[] = [];
@@ -63,7 +67,7 @@ export default function PaymentsPageClient({
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
 
-  // 🚀 ১. সরাসরি শিক্ষার্থী রো থেকে `+ বেতন` নেওয়ার মোডাল স্টেট
+  // 🚀 ১. সরাসরি শিক্ষার্থী রো থেকে `+ বেতন জমা` মোডাল স্টেট
   const [quickPayStudent, setQuickPayStudent] = useState<Student | null>(null);
   const [quickPayForm, setQuickPayForm] = useState({
     amount: 1200,
@@ -76,7 +80,7 @@ export default function PaymentsPageClient({
   // 📋 ২. শিক্ষার্থীর সকল রসিদ হিস্ট্রি দেখার মোডাল স্টেট
   const [historyStudent, setHistoryStudent] = useState<Student | null>(null);
 
-  // ✨ ৩. নতুন ভর্তি + পেমেন্ট মোডাল স্টেট (টপ বাটন)
+  // ✨ ৩. নতুন ভর্তি + পেমেন্ট মোডাল স্টেট (ভর্তির তারিখ সহ)
   const [newStudentModalOpen, setNewStudentModalOpen] = useState(false);
   const [newStudentForm, setNewStudentForm] = useState<QuickStudentAndPaymentInput>({
     full_name: "",
@@ -86,6 +90,7 @@ export default function PaymentsPageClient({
     group_name: "বিজ্ঞান বিভাগ",
     batch_id: batches[0]?.id || "",
     batch_name_snapshot: batches[0]?.name || "",
+    created_at: getTodayDateString(),
     amount: 1200,
     method: "cash",
     for_month: getCurrentMonthValue(),
@@ -222,7 +227,13 @@ export default function PaymentsPageClient({
       setPayments((prev) => [res.payment!, ...prev]);
       showToast("নতুন শিক্ষার্থী ভর্তি ও বেতন গ্রহণ সফল হয়েছে!", "success");
       setNewStudentModalOpen(false);
-      setNewStudentForm((prev) => ({ ...prev, full_name: "", phone: "", note: "" }));
+      setNewStudentForm((prev) => ({
+        ...prev,
+        full_name: "",
+        phone: "",
+        created_at: getTodayDateString(),
+        note: "",
+      }));
     } else {
       showToast(res.message || "ভর্তি ও পেমেন্ট সম্পন্ন করা যায়নি।", "error");
     }
@@ -272,7 +283,7 @@ export default function PaymentsPageClient({
     <div>
       <PageHeader
         title="বেতন ও পেমেন্ট লেজার"
-        subtitle={`শিক্ষার্থীদের মাসিক বেতন ট্র্যাকিং ও অফলাইন/অনলাইন কালেকশন`}
+        subtitle="শিক্ষার্থীদের মাসিক বেতন ট্র্যাকিং ও অফলাইন/অনলাইন কালেকশন"
         action={
           <PrimaryButton onClick={() => setNewStudentModalOpen(true)}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -375,7 +386,7 @@ export default function PaymentsPageClient({
         </div>
       </div>
 
-      {/* 🎯 শিক্ষার্থীকেন্দ্রিক একক লেজার টেবিল (Student Ledger Table) */}
+      {/* 🎯 শিক্ষার্থীকেন্দ্রিক একক লেজার টেবিল */}
       <div className="overflow-hidden rounded-[24px] border border-border-base/80 bg-white shadow-sh2">
         <div className="sleek-scrollbar overflow-x-auto">
           <table className="w-full min-w-[960px] text-left">
@@ -428,7 +439,7 @@ export default function PaymentsPageClient({
                         </div>
                       </td>
 
-                      {/* ২. পরিশোধিত মাসসমূহ (ব্যাজ আকারে) */}
+                      {/* ২. পরিশোধিত মাসসমূহ */}
                       <td className="p-3.5 max-w-[280px]">
                         {studentPays.length === 0 ? (
                           <span className="font-body text-[11.5px] text-muted">এখনো কোনো ফি জমা হয়নি</span>
@@ -453,7 +464,7 @@ export default function PaymentsPageClient({
                         )}
                       </td>
 
-                      {/* ৩. মোট প্রদত্ত ফি (রো-তেই বাড়বে) */}
+                      {/* ৩. মোট প্রদত্ত ফি */}
                       <td className="whitespace-nowrap p-3.5 font-black text-[15px] text-emerald-800">
                         {formatTaka(totalPaid)}
                       </td>
@@ -481,7 +492,7 @@ export default function PaymentsPageClient({
                         )}
                       </td>
 
-                      {/* ৬. অ্যাকশন কলাম (+ বেতন ও রসিদ হিস্ট্রি) */}
+                      {/* ৬. অ্যাকশন */}
                       <td className="whitespace-nowrap p-3.5 pr-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           {/* 🚀 প্লাস বাটন: পরবর্তী মাসের বেতন জমা */}
@@ -495,7 +506,7 @@ export default function PaymentsPageClient({
                             <span>বেতন জমা</span>
                           </button>
 
-                          {/* 📋 রসিদ হিস্ট্রি বাটন */}
+                          {/* 📋 রসিদ হিস্ট্রি */}
                           <button
                             type="button"
                             onClick={() => setHistoryStudent(s)}
@@ -604,7 +615,7 @@ export default function PaymentsPageClient({
         )}
       </Modal>
 
-      {/* 📋 ২. শিক্ষার্থীর সকল রসিদ ও হিস্ট্রি মোডাল (এডিট/ডিলিট সুবিধা সহ) */}
+      {/* 📋 ২. শিক্ষার্থীর সকল রসিদ ও হিস্ট্রি মোডাল */}
       <Modal
         open={!!historyStudent}
         onClose={() => setHistoryStudent(null)}
@@ -676,12 +687,12 @@ export default function PaymentsPageClient({
         )}
       </Modal>
 
-      {/* ✨ ৩. নতুন ভর্তি ও পেমেন্ট মোডাল */}
+      {/* ✨ ৩. নতুন ভর্তি ও পেমেন্ট মোডাল (ভর্তির তারিখ সহ) */}
       <Modal
         open={newStudentModalOpen}
         onClose={() => setNewStudentModalOpen(false)}
         title="নতুন ভর্তি ও বেতন গ্রহণ"
-        description="নতুন শিক্ষার্থীর তথ্য এন্ট্রি করে সাথে সাথে প্রথম মাসের বেতন জমা করুন।"
+        description="নতুন শিক্ষার্থীর তথ্য ও ভর্তির তারিখ এন্ট্রি করে প্রথম মাসের বেতন জমা করুন।"
       >
         <form onSubmit={handleNewStudentAndPaymentSubmit} className="space-y-3.5">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -706,6 +717,15 @@ export default function PaymentsPageClient({
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="ভর্তির তারিখ (বেতনের সাইকেল শুরু) *" required>
+              <TextInput
+                type="date"
+                required
+                value={newStudentForm.created_at || getTodayDateString()}
+                onChange={(e) => setNewStudentForm({ ...newStudentForm, created_at: e.target.value })}
+              />
+            </Field>
+
             <Field label="ব্যাচ নির্বাচন করুন *" required>
               <Select
                 value={newStudentForm.batch_id || ""}
@@ -727,15 +747,15 @@ export default function PaymentsPageClient({
                 ))}
               </Select>
             </Field>
-
-            <Field label="কলেজের নাম">
-              <TextInput
-                placeholder="যেমন: চৌদ্দগ্রাম সরকারি কলেজ"
-                value={newStudentForm.college}
-                onChange={(e) => setNewStudentForm({ ...newStudentForm, college: e.target.value })}
-              />
-            </Field>
           </div>
+
+          <Field label="কলেজের নাম">
+            <TextInput
+              placeholder="যেমন: চৌদ্দগ্রাম সরকারি কলেজ"
+              value={newStudentForm.college}
+              onChange={(e) => setNewStudentForm({ ...newStudentForm, college: e.target.value })}
+            />
+          </Field>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="প্রথম বেতনের মাস *" required>
