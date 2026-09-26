@@ -8,7 +8,6 @@ import {
   recordNewStudentAndPayment,
   updatePayment,
   deletePayment,
-  type PaymentInput,
   type QuickStudentAndPaymentInput,
 } from "@/app/actions/payments";
 import { useToast } from "@/components/admin/Toast";
@@ -23,10 +22,10 @@ import {
   Select,
   EmptyState,
 } from "@/components/admin/ui";
-import { formatTaka } from "@/lib/utils";
+import { formatTaka, dueMonthsForStudent } from "@/lib/utils";
 import { toBengaliDigits, formatBengaliDate, BENGALI_MONTHS } from "@/lib/bengaliNumerals";
 
-// বিগত ৬ মাস ও আগামী ৪ মাসের তালিকা
+// বিগত ৬ মাস ও আগামী ৪ মাসের ড্রপডাউন
 function getMonthOptions() {
   const options: { value: string; label: string }[] = [];
   const now = new Date();
@@ -59,28 +58,26 @@ export default function PaymentsPageClient({
   const [payments, setPayments] = useState<Payment[]>(initialPayments);
   const [allStudents, setAllStudents] = useState<Student[]>(students);
   const [search, setSearch] = useState("");
-  const [monthFilter, setMonthFilter] = useState<string>("all");
-  const [methodFilter, setMethodFilter] = useState<string>("all");
+  const [batchFilter, setBatchFilter] = useState<string>("all");
+  const [dueFilter, setDueFilter] = useState(false);
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
-  const currentMonthVal = useMemo(() => getCurrentMonthValue(), []);
 
-  // মূল পেমেন্ট মোডাল স্টেট
-  const [addModalOpen, setAddModalOpen] = useState(false);
-  const [addMode, setAddMode] = useState<"existing" | "new_student">("existing");
-  const [studentSearchInModal, setStudentSearchInModal] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  // বিদ্যমান শিক্ষার্থী পেমেন্ট ফর্ম
-  const [existingForm, setExistingForm] = useState<PaymentInput>({
-    student_id: "",
+  // 🚀 ১. সরাসরি শিক্ষার্থী রো থেকে `+ বেতন` নেওয়ার মোডাল স্টেট
+  const [quickPayStudent, setQuickPayStudent] = useState<Student | null>(null);
+  const [quickPayForm, setQuickPayForm] = useState({
     amount: 1200,
-    method: "cash",
-    for_month: currentMonthVal,
+    method: "cash" as PaymentMethod,
+    for_month: getCurrentMonthValue(),
     note: "অফিসে সরাসরি জমা",
   });
+  const [recordingQuickPay, setRecordingQuickPay] = useState(false);
 
-  // নতুন শিক্ষার্থী + পেমেন্ট ফর্ম
+  // 📋 ২. শিক্ষার্থীর সকল রসিদ হিস্ট্রি দেখার মোডাল স্টেট
+  const [historyStudent, setHistoryStudent] = useState<Student | null>(null);
+
+  // ✨ ৩. নতুন ভর্তি + পেমেন্ট মোডাল স্টেট (টপ বাটন)
+  const [newStudentModalOpen, setNewStudentModalOpen] = useState(false);
   const [newStudentForm, setNewStudentForm] = useState<QuickStudentAndPaymentInput>({
     full_name: "",
     phone: "",
@@ -91,113 +88,87 @@ export default function PaymentsPageClient({
     batch_name_snapshot: batches[0]?.name || "",
     amount: 1200,
     method: "cash",
-    for_month: currentMonthVal,
+    for_month: getCurrentMonthValue(),
     note: "ভর্তিকালীন প্রথম মাসের বেতন",
   });
+  const [savingNewStudent, setSavingNewStudent] = useState(false);
 
-  // 🚀 রো থেকে নির্দিষ্ট শিক্ষার্থীর পরবর্তী মাসের বেতন নেওয়ার স্পেশাল মোডাল
-  const [quickPayStudent, setQuickPayStudent] = useState<Student | null>(null);
-  const [quickPayForm, setQuickPayForm] = useState({
-    amount: 1200,
-    method: "cash" as PaymentMethod,
-    for_month: currentMonthVal,
-    note: "অফিসে সরাসরি জমা",
-  });
-  const [recordingQuickPay, setRecordingQuickPay] = useState(false);
-
-  // এডিট মোডাল স্টেট
-  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
-  const [editFormData, setEditFormData] = useState({
+  // রসিদ এডিট ও ডিলিট স্টেট
+  const [editingReceipt, setEditingReceipt] = useState<Payment | null>(null);
+  const [editReceiptForm, setEditReceiptForm] = useState({
     amount: 0,
     method: "cash" as PaymentMethod,
-    for_month: currentMonthVal,
+    for_month: getCurrentMonthValue(),
     note: "",
   });
-
-  // ডিলিট স্টেট
-  const [deleteTarget, setDeleteTarget] = useState<Payment | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deleteReceiptTarget, setDeleteReceiptTarget] = useState<Payment | null>(null);
+  const [deletingReceipt, setDeletingReceipt] = useState(false);
 
   useEffect(() => {
     if (searchParams.get("action") === "add") {
-      setAddModalOpen(true);
+      setNewStudentModalOpen(true);
     }
   }, [searchParams]);
 
-  // শিক্ষার্থী ম্যাপ
-  const studentMap = useMemo(() => {
-    const map = new Map<string, Student>();
-    allStudents.forEach((s) => map.set(s.id, s));
-    return map;
-  }, [allStudents]);
-
-  // ফিল্টার করা পেমেন্ট তালিকা
-  const filteredPayments = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return payments.filter((p) => {
-      const student = studentMap.get(p.student_id);
-      const studentName = student?.full_name?.toLowerCase() || "";
-      const studentPhone = student?.phone || "";
-      const note = p.note?.toLowerCase() || "";
-
-      const matchSearch = !q || studentName.includes(q) || studentPhone.includes(q) || note.includes(q);
-      const matchMonth = monthFilter === "all" || p.for_month.slice(0, 7) === monthFilter.slice(0, 7);
-      const matchMethod = methodFilter === "all" || p.method === methodFilter;
-
-      return matchSearch && matchMonth && matchMethod;
+  // শিক্ষার্থী অনুযায়ী পেমেন্ট গ্রুপ করা
+  const studentPaymentsMap = useMemo(() => {
+    const map = new Map<string, Payment[]>();
+    payments.forEach((p) => {
+      const list = map.get(p.student_id) || [];
+      list.push(p);
+      map.set(p.student_id, list);
     });
-  }, [payments, search, monthFilter, methodFilter, studentMap]);
+    // প্রতিটি শিক্ষার্থীর পেমেন্ট মাসের ক্রমানুসারে সাজানো
+    map.forEach((list) => {
+      list.sort((a, b) => a.for_month.localeCompare(b.for_month));
+    });
+    return map;
+  }, [payments]);
 
-  // কালেকশন পরিসংখ্যান
-  const stats = useMemo(() => {
-    const total = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
-    const cashTotal = filteredPayments.filter((p) => p.method === "cash").reduce((sum, p) => sum + p.amount, 0);
-    const onlineTotal = filteredPayments.filter((p) => p.method === "online").reduce((sum, p) => sum + p.amount, 0);
-    return { total, cashTotal, onlineTotal, count: filteredPayments.length };
-  }, [filteredPayments]);
-
-  // মোডালে শত শত শিক্ষার্থীর মধ্য থেকে সার্চ করার জন্য ফিল্টার
-  const modalFilteredStudents = useMemo(() => {
-    const q = studentSearchInModal.trim().toLowerCase();
-    if (!q) return allStudents;
-    return allStudents.filter(
-      (s) =>
+  // ফিল্টার করা একক শিক্ষার্থীর তালিকা (Student Ledger)
+  const studentLedgerList = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return allStudents.filter((s) => {
+      const matchSearch =
+        !q ||
         s.full_name.toLowerCase().includes(q) ||
         s.phone.includes(q) ||
-        s.college_roll.toLowerCase().includes(q)
-    );
-  }, [allStudents, studentSearchInModal]);
+        s.college.toLowerCase().includes(q) ||
+        s.college_roll.toLowerCase().includes(q);
 
-  // নির্দিষ্ট শিক্ষার্থীর সকল পেমেন্ট
-  const studentHistoryList = useMemo(() => {
-    if (!quickPayStudent) return [];
-    return payments
-      .filter((p) => p.student_id === quickPayStudent.id)
-      .sort((a, b) => a.for_month.localeCompare(b.for_month));
-  }, [payments, quickPayStudent]);
+      const matchBatch = batchFilter === "all" || s.batch_id === batchFilter;
+      const dueMonths = dueMonthsForStudent(s, payments);
+      const matchDue = !dueFilter || dueMonths > 0;
 
-  // 🚀 টেবিল রো-তে থাকা `+` (পরের মাস) বাটনে ক্লিক করলে
-  function handleOpenQuickNextMonthPay(studentId: string) {
-    const s = studentMap.get(studentId);
-    if (!s) return;
+      return matchSearch && matchBatch && matchDue;
+    });
+  }, [allStudents, search, batchFilter, dueFilter, payments]);
 
-    setQuickPayStudent(s);
+  // সামগ্রিক কালেকশন পরিসংখ্যান
+  const stats = useMemo(() => {
+    const total = payments.reduce((sum, p) => sum + p.amount, 0);
+    const cashTotal = payments.filter((p) => p.method === "cash").reduce((sum, p) => sum + p.amount, 0);
+    const onlineTotal = payments.filter((p) => p.method === "online").reduce((sum, p) => sum + p.amount, 0);
+    return { total, cashTotal, onlineTotal, count: payments.length };
+  }, [payments]);
 
-    // শিক্ষার্থীর পূর্ববর্তী পেমেন্টগুলো বের করা
-    const studentPays = payments
-      .filter((p) => p.student_id === studentId)
-      .sort((a, b) => b.for_month.localeCompare(a.for_month));
+  // 🚀 ১-ক্লিকে নির্দিষ্ট শিক্ষার্থীর পরবর্তী মাসের বেতন মোডাল ওপেন
+  function openQuickPayModal(student: Student) {
+    setQuickPayStudent(student);
 
+    const studentPays = studentPaymentsMap.get(student.id) || [];
     let nextMonth = getCurrentMonthValue();
+
     if (studentPays.length > 0) {
-      // সর্বশেষ যে মাসের বেতন দিয়েছে তার পরের মাসটি অটোমেটিক নির্বাচন করা
-      const lastMonthDate = new Date(studentPays[0].for_month);
+      // শেষ যে মাসের বেতন পরিশোধ করা হয়েছে তার ঠিক পরের মাস সিলেক্ট করা
+      const lastMonthDate = new Date(studentPays[studentPays.length - 1].for_month);
       const nextDate = new Date(lastMonthDate.getFullYear(), lastMonthDate.getMonth() + 1, 1);
       nextMonth = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}-01`;
     }
 
     let defaultAmount = 1200;
-    if (s.batch_name_snapshot?.includes("Combine")) defaultAmount = 2000;
+    if (student.batch_name_snapshot?.includes("Combine")) defaultAmount = 2000;
 
     setQuickPayForm({
       amount: defaultAmount,
@@ -235,73 +206,32 @@ export default function PaymentsPageClient({
     }
   }
 
-  // সাধারণ মোডালে শিক্ষার্থী সিলেক্ট হলে
-  function handleExistingStudentSelect(studentId: string) {
-    const s = studentMap.get(studentId);
-    let amount = 1200;
-    if (s?.batch_name_snapshot?.includes("Combine")) amount = 2000;
-    setExistingForm((prev) => ({
-      ...prev,
-      student_id: studentId,
-      amount,
-    }));
-  }
-
-  // নতুন শিক্ষার্থী ব্যাচ পরিবর্তন হলে
-  function handleNewStudentBatchChange(batchId: string) {
-    const b = batches.find((x) => x.id === batchId);
-    const amount = b?.name?.includes("Combine") ? 2000 : 1200;
-    setNewStudentForm((prev) => ({
-      ...prev,
-      batch_id: batchId,
-      batch_name_snapshot: b?.name || "",
-      amount,
-    }));
-  }
-
-  // মূল পেমেন্ট ফর্ম সেভ
-  async function handleSavePayment(e: React.FormEvent) {
+  // নতুন শিক্ষার্থী ভর্তি + পেমেন্ট
+  async function handleNewStudentAndPaymentSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
+    if (!newStudentForm.full_name.trim() || !newStudentForm.phone.trim()) {
+      showToast("শিক্ষার্থীর নাম ও মোবাইল নম্বর দিন।", "error");
+      return;
+    }
 
-    if (addMode === "existing") {
-      if (!existingForm.student_id) {
-        showToast("শিক্ষার্থী নির্বাচন করুন।", "error");
-        setSaving(false);
-        return;
-      }
-      const res = await recordPayment(existingForm);
-      setSaving(false);
-      if (res.ok && res.payment) {
-        setPayments((prev) => [res.payment!, ...prev]);
-        showToast("বেতন সফলভাবে জমা হয়েছে।", "success");
-        setAddModalOpen(false);
-        setExistingForm((prev) => ({ ...prev, student_id: "", note: "" }));
-      } else {
-        showToast(res.message || "পেমেন্ট ব্যর্থ হয়েছে।", "error");
-      }
+    setSavingNewStudent(true);
+    const res = await recordNewStudentAndPayment(newStudentForm);
+    setSavingNewStudent(false);
+
+    if (res.ok && res.payment) {
+      setPayments((prev) => [res.payment!, ...prev]);
+      showToast("নতুন শিক্ষার্থী ভর্তি ও বেতন গ্রহণ সফল হয়েছে!", "success");
+      setNewStudentModalOpen(false);
+      setNewStudentForm((prev) => ({ ...prev, full_name: "", phone: "", note: "" }));
     } else {
-      if (!newStudentForm.full_name.trim() || !newStudentForm.phone.trim()) {
-        showToast("শিক্ষার্থীর নাম ও মোবাইল নম্বর দিন।", "error");
-        setSaving(false);
-        return;
-      }
-      const res = await recordNewStudentAndPayment(newStudentForm);
-      setSaving(false);
-      if (res.ok && res.payment) {
-        setPayments((prev) => [res.payment!, ...prev]);
-        showToast("শিক্ষার্থী ভর্তি ও বেতন গ্রহণ সফল হয়েছে!", "success");
-        setAddModalOpen(false);
-        setNewStudentForm((prev) => ({ ...prev, full_name: "", phone: "", note: "" }));
-      } else {
-        showToast(res.message || "ভর্তি ও পেমেন্ট সম্পন্ন করা যায়নি।", "error");
-      }
+      showToast(res.message || "ভর্তি ও পেমেন্ট সম্পন্ন করা যায়নি।", "error");
     }
   }
 
-  function openEditModal(p: Payment) {
-    setEditingPayment(p);
-    setEditFormData({
+  // রসিদ এডিট ওপেন
+  function openEditReceipt(p: Payment) {
+    setEditingReceipt(p);
+    setEditReceiptForm({
       amount: p.amount,
       method: p.method,
       for_month: p.for_month,
@@ -309,30 +239,30 @@ export default function PaymentsPageClient({
     });
   }
 
-  async function handleEditSave(e: React.FormEvent) {
+  async function handleEditReceiptSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!editingPayment) return;
-    setSaving(true);
-    const res = await updatePayment(editingPayment.id, editFormData);
-    setSaving(false);
+    if (!editingReceipt) return;
+    setSavingEdit(true);
+    const res = await updatePayment(editingReceipt.id, editReceiptForm);
+    setSavingEdit(false);
     if (res.ok && res.payment) {
-      setPayments((prev) => prev.map((x) => (x.id === editingPayment.id ? res.payment! : x)));
-      showToast("পেমেন্ট তথ্য হালনাগাদ হয়েছে।", "success");
-      setEditingPayment(null);
+      setPayments((prev) => prev.map((x) => (x.id === editingReceipt.id ? res.payment! : x)));
+      showToast("রসিদ হালনাগাদ হয়েছে।", "success");
+      setEditingReceipt(null);
     } else {
       showToast(res.message || "আপডেট ব্যর্থ হয়েছে।", "error");
     }
   }
 
-  async function handleDeleteConfirm() {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    const res = await deletePayment(deleteTarget.id);
-    setDeleting(false);
+  async function handleDeleteReceiptConfirm() {
+    if (!deleteReceiptTarget) return;
+    setDeletingReceipt(true);
+    const res = await deletePayment(deleteReceiptTarget.id);
+    setDeletingReceipt(false);
     if (res.ok) {
-      setPayments((prev) => prev.filter((x) => x.id !== deleteTarget.id));
-      showToast("পেমেন্ট রেকর্ড মুছে ফেলা হয়েছে।", "success");
-      setDeleteTarget(null);
+      setPayments((prev) => prev.filter((x) => x.id !== deleteReceiptTarget.id));
+      showToast("রসিদ মুছে ফেলা হয়েছে।", "success");
+      setDeleteReceiptTarget(null);
     } else {
       showToast(res.message || "মুছে ফেলা যায়নি।", "error");
     }
@@ -341,15 +271,15 @@ export default function PaymentsPageClient({
   return (
     <div>
       <PageHeader
-        title="বেতন ও পেমেন্ট ব্যবস্থাপনা"
-        subtitle="অফলাইন নগদ বেতন গ্রহণ, অনলাইন পেমেন্ট রেকর্ড ও কালেকশন হিস্ট্রি"
+        title="বেতন ও পেমেন্ট লেজার"
+        subtitle={`শিক্ষার্থীদের মাসিক বেতন ট্র্যাকিং ও অফলাইন/অনলাইন কালেকশন`}
         action={
-          <PrimaryButton onClick={() => setAddModalOpen(true)}>
+          <PrimaryButton onClick={() => setNewStudentModalOpen(true)}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            <span>+ বেতন / পেমেন্ট গ্রহণ করুন</span>
+            <span>+ নতুন ভর্তি ও পেমেন্ট গ্রহণ</span>
           </PrimaryButton>
         }
       />
@@ -357,9 +287,9 @@ export default function PaymentsPageClient({
       {/* কালেকশন ওভারভিউ কার্ডস */}
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-2xl border border-sky-200/70 bg-gradient-to-br from-[#EBF5FF] via-white to-white p-4 shadow-sh1">
-          <p className="font-body text-[11px] font-extrabold uppercase tracking-wider text-sky-700">মোট কালেকশন</p>
+          <p className="font-body text-[11px] font-extrabold uppercase tracking-wider text-sky-700">সর্বমোট কালেকশন</p>
           <p className="mt-1 font-body text-[20px] font-black text-sky-950 sm:text-[22px]">{formatTaka(stats.total)}</p>
-          <span className="font-body text-[10.5px] font-semibold text-muted">মোট {toBengaliDigits(stats.count)}টি পেমেন্ট</span>
+          <span className="font-body text-[10.5px] font-semibold text-muted">মোট {toBengaliDigits(stats.count)}টি রসিদ</span>
         </div>
 
         <div className="rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-[#ECFDF5] via-white to-white p-4 shadow-sh1">
@@ -375,11 +305,9 @@ export default function PaymentsPageClient({
         </div>
 
         <div className="rounded-2xl border border-amber-200/70 bg-gradient-to-br from-[#FFFBEB] via-white to-white p-4 shadow-sh1">
-          <p className="font-body text-[11px] font-extrabold uppercase tracking-wider text-warn">গড় বেতন/পেমেন্ট</p>
-          <p className="mt-1 font-body text-[20px] font-black text-amber-950 sm:text-[22px]">
-            {formatTaka(stats.count > 0 ? Math.round(stats.total / stats.count) : 0)}
-          </p>
-          <span className="font-body text-[10.5px] font-semibold text-muted">প্রতি ট্রানজেকশনে</span>
+          <p className="font-body text-[11px] font-extrabold uppercase tracking-wider text-warn">নিবন্ধিত শিক্ষার্থী</p>
+          <p className="mt-1 font-body text-[20px] font-black text-amber-950 sm:text-[22px]">{toBengaliDigits(allStudents.length)} জন</p>
+          <span className="font-body text-[10.5px] font-semibold text-muted">চলমান সকল ব্যাচে</span>
         </div>
       </div>
 
@@ -401,7 +329,7 @@ export default function PaymentsPageClient({
             </svg>
             <input
               type="text"
-              placeholder="শিক্ষার্থীর নাম, মোবাইল নম্বর অথবা নোট দিয়ে খুঁজুন..."
+              placeholder="শিক্ষার্থীর নাম, রোল, কলেজ অথবা মোবাইল নম্বর দিয়ে খুঁজুন..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-[40px] w-full rounded-full border border-border-base/80 bg-surface-muted/60 pl-10 pr-9 font-body text-[13px] text-ink-800 placeholder:text-muted/70 outline-none transition-all focus:border-sky-600 focus:bg-white focus:ring-2 focus:ring-sky-600/20"
@@ -419,150 +347,167 @@ export default function PaymentsPageClient({
 
           <div className="flex flex-wrap items-center gap-2">
             <select
-              value={monthFilter}
-              onChange={(e) => setMonthFilter(e.target.value)}
-              className="h-[38px] rounded-xl border border-border-base/80 bg-white px-3 font-body text-[12.5px] font-semibold text-ink-800 outline-none focus:border-sky-600"
+              value={batchFilter}
+              onChange={(e) => setBatchFilter(e.target.value)}
+              className="h-[38px] max-w-[190px] truncate rounded-xl border border-border-base/80 bg-white px-3 font-body text-[12.5px] font-semibold text-ink-800 outline-none focus:border-sky-600"
             >
-              <option value="all">সকল মাসের রেকর্ড</option>
-              {monthOptions.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
+              <option value="all">সকল ব্যাচের শিক্ষার্থী</option>
+              {batches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
                 </option>
               ))}
             </select>
 
-            <select
-              value={methodFilter}
-              onChange={(e) => setMethodFilter(e.target.value)}
-              className="h-[38px] rounded-xl border border-border-base/80 bg-white px-3 font-body text-[12.5px] font-semibold text-ink-800 outline-none focus:border-sky-600"
+            <button
+              type="button"
+              onClick={() => setDueFilter((v) => !v)}
+              className={`flex h-[38px] items-center gap-1.5 rounded-xl border px-3.5 font-body text-[12px] font-bold transition-all ${
+                dueFilter
+                  ? "border-amber-400 bg-amber-50 text-amber-800 shadow-xs"
+                  : "border-border-base/80 bg-white text-ink-800 hover:bg-surface-muted"
+              }`}
             >
-              <option value="all">সকল মাধ্যম (নগদ + অনলাইন)</option>
-              <option value="cash">নগদ / ক্যাশ</option>
-              <option value="online">অনলাইন</option>
-            </select>
+              <span>⚠️ শুধু বকেয়া আছে</span>
+              {dueFilter && <span className="text-xs">✓</span>}
+            </button>
           </div>
         </div>
       </div>
 
-      {/* পেমেন্ট টেবিল */}
+      {/* 🎯 শিক্ষার্থীকেন্দ্রিক একক লেজার টেবিল (Student Ledger Table) */}
       <div className="overflow-hidden rounded-[24px] border border-border-base/80 bg-white shadow-sh2">
         <div className="sleek-scrollbar overflow-x-auto">
-          <table className="w-full min-w-[920px] text-left">
+          <table className="w-full min-w-[960px] text-left">
             <thead>
               <tr className="border-b border-border-base bg-[#F8FAFC] font-body text-[11px] font-extrabold uppercase tracking-wider text-muted">
                 <th className="py-3.5 pl-4 pr-3">শিক্ষার্থী ও ব্যাচ</th>
-                <th className="p-3.5">বেতনের মাস</th>
-                <th className="p-3.5">টাকার পরিমাণ</th>
-                <th className="p-3.5">পেমেন্ট মাধ্যম</th>
-                <th className="p-3.5">জমার তারিখ</th>
-                <th className="p-3.5">মন্তব্য / নোট</th>
+                <th className="p-3.5">পরিশোধিত মাসসমূহ (হিস্ট্রি)</th>
+                <th className="p-3.5">মোট প্রদত্ত ফি</th>
+                <th className="p-3.5">বকেয়া অবস্থা</th>
+                <th className="p-3.5">সর্বশেষ জমার মাধ্যম ও তারিখ</th>
                 <th className="p-3.5 pr-4 text-right">অ্যাকশন</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-base/40 font-body text-[13px]">
-              {filteredPayments.length === 0 ? (
+              {studentLedgerList.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center">
+                  <td colSpan={6} className="py-12 text-center">
                     <EmptyState
-                      title="কোনো পেমেন্ট রেকর্ড পাওয়া যায়নি"
-                      hint="নতুন বেতন জমা করুন অথবা সার্চ/ফিল্টার পরিবর্তন করুন।"
+                      title="কোনো শিক্ষার্থী পাওয়া যায়নি"
+                      hint="সার্চ পরিবর্তন করুন অথবা নতুন শিক্ষার্থী ভর্তি করিয়ে বেতন গ্রহণ করুন।"
                     />
                   </td>
                 </tr>
               ) : (
-                filteredPayments.map((p) => {
-                  const student = studentMap.get(p.student_id);
-                  const monthD = new Date(p.for_month);
-                  const monthName = !isNaN(monthD.getTime())
-                    ? `${BENGALI_MONTHS[monthD.getMonth()]} ${toBengaliDigits(monthD.getFullYear())}`
-                    : p.for_month;
+                studentLedgerList.map((s) => {
+                  const studentPays = studentPaymentsMap.get(s.id) || [];
+                  const totalPaid = studentPays.reduce((sum, p) => sum + p.amount, 0);
+                  const dueMonths = dueMonthsForStudent(s, payments);
+                  const lastPayment = studentPays[studentPays.length - 1];
 
                   return (
                     <tr
-                      key={p.id}
+                      key={s.id}
                       className="transition-colors odd:bg-white even:bg-[#F8FAFC]/70 hover:bg-sky-50/40"
                     >
-                      {/* শিক্ষার্থী ও ব্যাচ */}
-                      <td className="py-3 pl-4 pr-3">
+                      {/* ১. শিক্ষার্থী ও ব্যাচ */}
+                      <td className="py-3.5 pl-4 pr-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 font-body text-[13px] font-black text-success shadow-xs">
-                            ৳
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-sky-600 font-body text-[13px] font-black text-white shadow-xs">
+                            {s.full_name.slice(0, 1)}
                           </div>
                           <div className="min-w-0">
                             <p className="truncate font-body text-[13.5px] font-black text-sky-950">
-                              {student?.full_name || "অজ্ঞাত শিক্ষার্থী"}
+                              {s.full_name}
                             </p>
-                            <span className="font-body text-[11px] font-semibold text-muted">
-                              {student?.batch_name_snapshot || student?.phone || "—"}
-                            </span>
+                            <p className="font-body text-[11px] font-semibold text-sky-800">
+                              {s.batch_name_snapshot || "ব্যাচ নির্ধারিত নেই"} · {s.phone}
+                            </p>
                           </div>
                         </div>
                       </td>
 
-                      {/* বেতনের মাস */}
-                      <td className="p-3">
-                        <span className="inline-block rounded-lg bg-sky-100/70 px-2.5 py-1 font-body text-[12px] font-bold text-sky-800">
-                          {monthName}
-                        </span>
+                      {/* ২. পরিশোধিত মাসসমূহ (ব্যাজ আকারে) */}
+                      <td className="p-3.5 max-w-[280px]">
+                        {studentPays.length === 0 ? (
+                          <span className="font-body text-[11.5px] text-muted">এখনো কোনো ফি জমা হয়নি</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5 max-h-[64px] overflow-y-auto sleek-scrollbar">
+                            {studentPays.map((p) => {
+                              const mDate = new Date(p.for_month);
+                              const label = !isNaN(mDate.getTime())
+                                ? `${BENGALI_MONTHS[mDate.getMonth()]} '${toBengaliDigits(mDate.getFullYear()).slice(-2)}`
+                                : p.for_month;
+                              return (
+                                <span
+                                  key={p.id}
+                                  className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-body text-[10.5px] font-bold text-emerald-800"
+                                  title={`${formatBengaliDate(p.created_at.slice(0, 10))} তারিখে ${formatTaka(p.amount)} (${p.method === "cash" ? "নগদ" : "অনলাইন"})`}
+                                >
+                                  <span>✓ {label}</span>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
                       </td>
 
-                      {/* পরিমাণ */}
-                      <td className="whitespace-nowrap p-3 font-black text-[15px] text-sky-950">
-                        {formatTaka(p.amount)}
+                      {/* ৩. মোট প্রদত্ত ফি (রো-তেই বাড়বে) */}
+                      <td className="whitespace-nowrap p-3.5 font-black text-[15px] text-emerald-800">
+                        {formatTaka(totalPaid)}
                       </td>
 
-                      {/* মাধ্যম */}
-                      <td className="whitespace-nowrap p-3">
-                        <Badge tone={p.method === "cash" ? "success" : "info"}>
-                          {p.method === "cash" ? "💵 নগদ / ক্যাশ" : "🌐 অনলাইন"}
-                        </Badge>
+                      {/* ৪. বকেয়া অবস্থা */}
+                      <td className="whitespace-nowrap p-3.5">
+                        {dueMonths > 0 ? (
+                          <Badge tone={dueMonths >= 3 ? "danger" : "warn"}>
+                            {toBengaliDigits(dueMonths)} মাস বাকি
+                          </Badge>
+                        ) : (
+                          <Badge tone="success">পরিশোধিত ✓</Badge>
+                        )}
                       </td>
 
-                      {/* জমার তারিখ */}
-                      <td className="whitespace-nowrap p-3 font-body text-[12px] text-muted">
-                        {formatBengaliDate(p.created_at.slice(0, 10))}
+                      {/* ৫. সর্বশেষ লেনদেন */}
+                      <td className="whitespace-nowrap p-3.5 font-body text-[11.5px] text-muted">
+                        {lastPayment ? (
+                          <>
+                            <span className="font-bold text-ink-800">{lastPayment.method === "cash" ? "💵 নগদ" : "🌐 অনলাইন"}</span>
+                            <span className="block text-[10.5px]">{formatBengaliDate(lastPayment.created_at.slice(0, 10))}</span>
+                          </>
+                        ) : (
+                          "—"
+                        )}
                       </td>
 
-                      {/* নোট */}
-                      <td className="p-3">
-                        <p className="max-w-[170px] truncate text-[12px] text-ink-800/80">
-                          {p.note || <span className="text-muted/50">—</span>}
-                        </p>
-                      </td>
-
-                      {/* ⚡ অ্যাকশন কলাম — স্পষ্ট প্লাস বাটন (+ পরের মাস) */}
-                      <td className="whitespace-nowrap p-3 pr-4 text-right">
+                      {/* ৬. অ্যাকশন কলাম (+ বেতন ও রসিদ হিস্ট্রি) */}
+                      <td className="whitespace-nowrap p-3.5 pr-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {/* 🚀 প্লাস বাটন: একই শিক্ষার্থীর পরবর্তী মাসের বেতন নেওয়া */}
+                          {/* 🚀 প্লাস বাটন: পরবর্তী মাসের বেতন জমা */}
                           <button
                             type="button"
-                            onClick={() => handleOpenQuickNextMonthPay(p.student_id)}
-                            className="inline-flex items-center gap-1 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-2.5 py-1.5 font-body text-[11.5px] font-black text-white shadow-xs transition-all hover:brightness-105 active:scale-95"
-                            title="এই শিক্ষার্থীর পরবর্তী মাসের বেতন গ্রহণ করুন"
+                            onClick={() => openQuickPayModal(s)}
+                            className="inline-flex items-center gap-1 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-3 py-1.5 font-body text-[11.5px] font-black text-white shadow-xs transition-all hover:brightness-105 active:scale-95"
+                            title="পরবর্তী মাসের বেতন জমা নিন"
                           >
                             <span className="text-[13px] leading-none">+</span>
-                            <span>পরের মাস</span>
+                            <span>বেতন জমা</span>
                           </button>
 
+                          {/* 📋 রসিদ হিস্ট্রি বাটন */}
                           <button
                             type="button"
-                            onClick={() => openEditModal(p)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-base/80 bg-white text-ink-800 transition-colors hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
-                            title="সম্পাদনা"
+                            onClick={() => setHistoryStudent(s)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-base/80 bg-white text-ink-800 transition-colors hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
+                            title="সকল রসিদ ও হিস্ট্রি দেখুন"
                           >
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                            </svg>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(p)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50/60 text-danger transition-colors hover:bg-rose-100"
-                            title="মুছে ফেলুন"
-                          >
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                              <polyline points="14 2 14 8 20 8" />
+                              <line x1="16" y1="13" x2="8" y2="13" />
+                              <line x1="16" y1="17" x2="8" y2="17" />
+                              <polyline points="10 9 9 9 8 9" />
                             </svg>
                           </button>
                         </div>
@@ -576,7 +521,7 @@ export default function PaymentsPageClient({
         </div>
       </div>
 
-      {/* 🚀 প্লাস (+) বাটনে ক্লিক করলে শিক্ষার্থীর নির্দিষ্ট পরবর্তী মাসের বেতন গ্রহণ মোডাল */}
+      {/* 🚀 ১. নির্দিষ্ট শিক্ষার্থীর পরবর্তী মাসের বেতন জমা মোডাল */}
       <Modal
         open={!!quickPayStudent}
         onClose={() => setQuickPayStudent(null)}
@@ -584,237 +529,219 @@ export default function PaymentsPageClient({
         description={`${quickPayStudent?.batch_name_snapshot || ""} · মোবাইল: ${quickPayStudent?.phone || ""}`}
       >
         {quickPayStudent && (
-          <div className="space-y-4">
-            {/* পূর্বের পেমেন্ট হিস্ট্রি কার্ড */}
-            <div className="rounded-2xl border border-sky-200/80 bg-sky-50/70 p-4">
-              <div className="flex items-center justify-between border-b border-sky-200/60 pb-2">
-                <span className="font-body text-[12px] font-black uppercase tracking-wider text-sky-950">
-                  ইতিমধ্যে পরিশোধিত মাসসমূহ ({toBengaliDigits(studentHistoryList.length)}টি):
-                </span>
-                <span className="font-body text-[13px] font-black text-emerald-800">
-                  মোট জমা: {formatTaka(studentHistoryList.reduce((sum, x) => sum + x.amount, 0))}
-                </span>
-              </div>
-
-              <div className="mt-2.5">
-                {studentHistoryList.length === 0 ? (
-                  <p className="font-body text-[11.5px] text-muted">এখনো কোনো মাসের পেমেন্ট রেকর্ড নেই।</p>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5 max-h-[85px] overflow-y-auto sleek-scrollbar">
-                    {studentHistoryList.map((p) => {
-                      const mDate = new Date(p.for_month);
-                      const label = !isNaN(mDate.getTime())
-                        ? `${BENGALI_MONTHS[mDate.getMonth()]} ${toBengaliDigits(mDate.getFullYear())}`
-                        : p.for_month;
-                      return (
-                        <span
-                          key={p.id}
-                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-2.5 py-1 font-body text-[11px] font-bold text-emerald-800 shadow-2xs"
-                          title={`${formatBengaliDate(p.created_at.slice(0, 10))} তারিখে ${p.method === "cash" ? "নগদে" : "অনলাইনে"} জমা`}
-                        >
-                          <span>✓ {label}</span>
-                          <span className="text-muted font-normal">({formatTaka(p.amount)})</span>
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* পরবর্তী মাসের বেতন ফর্ম */}
-            <form onSubmit={handleQuickPaySubmit} className="space-y-3.5 border-t border-border-base/60 pt-2">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="যে মাসের বেতন নিচ্ছেন *" required>
-                  <Select
-                    value={quickPayForm.for_month}
-                    onChange={(e) => setQuickPayForm({ ...quickPayForm, for_month: e.target.value })}
-                  >
-                    {monthOptions.map((m) => (
-                      <option key={m.value} value={m.value}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-
-                <Field label="টাকার পরিমাণ (৳) *" required>
-                  <TextInput
-                    type="number"
-                    required
-                    min={100}
-                    step={50}
-                    value={quickPayForm.amount}
-                    onChange={(e) => setQuickPayForm({ ...quickPayForm, amount: Number(e.target.value) })}
-                  />
-                </Field>
-              </div>
-
-              <Field label="পেমেন্টের মাধ্যম *" required>
-                <div className="flex gap-4 pt-1">
-                  <label className="flex cursor-pointer items-center gap-2 font-body text-[13px] font-bold text-ink-800">
-                    <input
-                      type="radio"
-                      name="quick_method"
-                      value="cash"
-                      checked={quickPayForm.method === "cash"}
-                      onChange={() => setQuickPayForm({ ...quickPayForm, method: "cash" })}
-                      className="h-4 w-4 text-sky-600 focus:ring-sky-600"
-                    />
-                    <span>💵 নগদ / ক্যাশ (অফিসে জমা)</span>
-                  </label>
-
-                  <label className="flex cursor-pointer items-center gap-2 font-body text-[13px] font-bold text-ink-800">
-                    <input
-                      type="radio"
-                      name="quick_method"
-                      value="online"
-                      checked={quickPayForm.method === "online"}
-                      onChange={() => setQuickPayForm({ ...quickPayForm, method: "online" })}
-                      className="h-4 w-4 text-sky-600 focus:ring-sky-600"
-                    />
-                    <span>🌐 অনলাইন / bKash</span>
-                  </label>
-                </div>
-              </Field>
-
-              <Field label="মন্তব্য / নোট (ঐচ্ছিক)">
-                <TextInput
-                  placeholder="যেমন: অফিসে সরাসরি জমা / রসিদ নং"
-                  value={quickPayForm.note}
-                  onChange={(e) => setQuickPayForm({ ...quickPayForm, note: e.target.value })}
-                />
-              </Field>
-
-              <div className="mt-5 flex justify-end gap-2 border-t border-border-base/60 pt-4">
-                <SecondaryButton type="button" onClick={() => setQuickPayStudent(null)}>
-                  বাতিল
-                </SecondaryButton>
-                <PrimaryButton type="submit" disabled={recordingQuickPay}>
-                  {recordingQuickPay ? "জমা হচ্ছে..." : "✓ বেতন গ্রহণ নিশ্চিত করুন"}
-                </PrimaryButton>
-              </div>
-            </form>
-          </div>
-        )}
-      </Modal>
-
-      {/* সাধারণ বেতন / পেমেন্ট গ্রহণ মোডাল */}
-      <Modal
-        open={addModalOpen}
-        onClose={() => setAddModalOpen(false)}
-        title="বেতন / পেমেন্ট গ্রহণ করুন"
-        description="অফলাইনে নগদ টাকা বা অনলাইনে পাওয়া ফি এন্ট্রি করুন।"
-      >
-        <div className="mb-4 flex gap-1.5 rounded-xl bg-surface-muted p-1">
-          <button
-            type="button"
-            onClick={() => setAddMode("existing")}
-            className={`flex-1 rounded-lg py-2 font-body text-[12.5px] font-bold transition-all ${
-              addMode === "existing" ? "bg-white text-sky-950 shadow-xs" : "text-muted hover:text-ink-800"
-            }`}
-          >
-            👤 বিদ্যমান শিক্ষার্থী
-          </button>
-          <button
-            type="button"
-            onClick={() => setAddMode("new_student")}
-            className={`flex-1 rounded-lg py-2 font-body text-[12.5px] font-bold transition-all ${
-              addMode === "new_student" ? "bg-white text-sky-950 shadow-xs" : "text-muted hover:text-ink-800"
-            }`}
-          >
-            ✨ নতুন ভর্তি + পেমেন্ট
-          </button>
-        </div>
-
-        <form onSubmit={handleSavePayment} className="space-y-3.5">
-          {addMode === "existing" ? (
-            <>
-              {/* শত শত শিক্ষার্থীর মধ্য থেকে খোঁজার জন্য ইনস্ট্যান্ট সার্চ */}
-              <div>
-                <label className="mb-1 block font-body text-[11px] font-bold text-muted">
-                  শিক্ষার্থী খুঁজতে নাম/মোবাইল টাইপ করুন:
-                </label>
-                <TextInput
-                  placeholder="নাম বা মোবাইল দিয়ে ফিল্টার করুন..."
-                  value={studentSearchInModal}
-                  onChange={(e) => setStudentSearchInModal(e.target.value)}
-                  className="mb-2 text-xs"
-                />
-              </div>
-
-              <Field label="শিক্ষার্থী নির্বাচন করুন *" required>
+          <form onSubmit={handleQuickPaySubmit} className="space-y-3.5">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="যে মাসের বেতন নিচ্ছেন *" required>
                 <Select
-                  required
-                  value={existingForm.student_id}
-                  onChange={(e) => handleExistingStudentSelect(e.target.value)}
+                  value={quickPayForm.for_month}
+                  onChange={(e) => setQuickPayForm({ ...quickPayForm, for_month: e.target.value })}
                 >
-                  <option value="">— শিক্ষার্থী বেছে নিন —</option>
-                  {modalFilteredStudents.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.full_name} ({s.college_roll ? `রোল: ${s.college_roll} · ` : ""}{s.batch_name_snapshot || s.phone})
+                  {monthOptions.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
                     </option>
                   ))}
                 </Select>
               </Field>
-            </>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="শিক্ষার্থীর পূর্ণ নাম *" required>
-                  <TextInput
-                    required
-                    placeholder="যেমন: মোঃ সাকিব হোসেন"
-                    value={newStudentForm.full_name}
-                    onChange={(e) => setNewStudentForm({ ...newStudentForm, full_name: e.target.value })}
-                  />
-                </Field>
 
-                <Field label="মোবাইল নম্বর *" required>
-                  <TextInput
-                    type="tel"
-                    required
-                    placeholder="01XXXXXXXXX"
-                    value={newStudentForm.phone}
-                    onChange={(e) => setNewStudentForm({ ...newStudentForm, phone: e.target.value })}
+              <Field label="টাকার পরিমাণ (৳) *" required>
+                <TextInput
+                  type="number"
+                  required
+                  min={100}
+                  step={50}
+                  value={quickPayForm.amount}
+                  onChange={(e) => setQuickPayForm({ ...quickPayForm, amount: Number(e.target.value) })}
+                />
+              </Field>
+            </div>
+
+            <Field label="পেমেন্টের মাধ্যম *" required>
+              <div className="flex gap-4 pt-1">
+                <label className="flex cursor-pointer items-center gap-2 font-body text-[13px] font-bold text-ink-800">
+                  <input
+                    type="radio"
+                    name="modal_method"
+                    value="cash"
+                    checked={quickPayForm.method === "cash"}
+                    onChange={() => setQuickPayForm({ ...quickPayForm, method: "cash" })}
+                    className="h-4 w-4 text-sky-600 focus:ring-sky-600"
                   />
-                </Field>
+                  <span>💵 নগদ / ক্যাশ (অফিসে জমা)</span>
+                </label>
+
+                <label className="flex cursor-pointer items-center gap-2 font-body text-[13px] font-bold text-ink-800">
+                  <input
+                    type="radio"
+                    name="modal_method"
+                    value="online"
+                    checked={quickPayForm.method === "online"}
+                    onChange={() => setQuickPayForm({ ...quickPayForm, method: "online" })}
+                    className="h-4 w-4 text-sky-600 focus:ring-sky-600"
+                  />
+                  <span>🌐 অনলাইন / bKash</span>
+                </label>
               </div>
+            </Field>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="ব্যাচ নির্বাচন করুন *" required>
-                  <Select
-                    value={newStudentForm.batch_id || ""}
-                    onChange={(e) => handleNewStudentBatchChange(e.target.value)}
-                  >
-                    {batches.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
+            <Field label="মন্তব্য / নোট (ঐচ্ছিক)">
+              <TextInput
+                placeholder="যেমন: অফিসে সরাসরি জমা / রসিদ নং"
+                value={quickPayForm.note}
+                onChange={(e) => setQuickPayForm({ ...quickPayForm, note: e.target.value })}
+              />
+            </Field>
 
-                <Field label="কলেজের নাম">
-                  <TextInput
-                    placeholder="যেমন: চৌদ্দগ্রাম সরকারি কলেজ"
-                    value={newStudentForm.college}
-                    onChange={(e) => setNewStudentForm({ ...newStudentForm, college: e.target.value })}
-                  />
-                </Field>
-              </div>
-            </>
-          )}
+            <div className="mt-5 flex justify-end gap-2 border-t border-border-base/60 pt-4">
+              <SecondaryButton type="button" onClick={() => setQuickPayStudent(null)}>
+                বাতিল
+              </SecondaryButton>
+              <PrimaryButton type="submit" disabled={recordingQuickPay}>
+                {recordingQuickPay ? "জমা হচ্ছে..." : "✓ বেতন গ্রহণ নিশ্চিত করুন"}
+              </PrimaryButton>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* 📋 ২. শিক্ষার্থীর সকল রসিদ ও হিস্ট্রি মোডাল (এডিট/ডিলিট সুবিধা সহ) */}
+      <Modal
+        open={!!historyStudent}
+        onClose={() => setHistoryStudent(null)}
+        title={`পেমেন্ট হিস্ট্রি — ${historyStudent?.full_name || ""}`}
+        description={`${historyStudent?.batch_name_snapshot || ""} · মোবাইল: ${historyStudent?.phone || ""}`}
+        maxWidth="max-w-xl"
+      >
+        {historyStudent && (
+          <div className="space-y-3">
+            {(() => {
+              const list = studentPaymentsMap.get(historyStudent.id) || [];
+              if (list.length === 0) {
+                return <p className="py-6 text-center font-body text-[13px] text-muted">এখনো কোনো জমার রেকর্ড নেই।</p>;
+              }
+              return (
+                <div className="space-y-2 max-h-[360px] overflow-y-auto sleek-scrollbar pr-1">
+                  {list.map((p) => {
+                    const mDate = new Date(p.for_month);
+                    const monthName = !isNaN(mDate.getTime())
+                      ? `${BENGALI_MONTHS[mDate.getMonth()]} ${toBengaliDigits(mDate.getFullYear())}`
+                      : p.for_month;
+
+                    return (
+                      <div
+                        key={p.id}
+                        className="flex items-center justify-between gap-3 rounded-xl border border-border-base/70 bg-surface-muted/50 p-3"
+                      >
+                        <div>
+                          <p className="font-body text-[13px] font-bold text-sky-950">{monthName}</p>
+                          <p className="font-body text-[11px] text-muted">
+                            {formatBengaliDate(p.created_at.slice(0, 10))} · {p.method === "cash" ? "💵 নগদ" : "🌐 অনলাইন"} {p.note ? `· ${p.note}` : ""}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <span className="font-body text-[14px] font-black text-emerald-800">{formatTaka(p.amount)}</span>
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() => openEditReceipt(p)}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg border border-border-base bg-white text-ink-800 hover:border-sky-400 hover:text-sky-700"
+                              title="সম্পাদনা"
+                            >
+                              ✎
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteReceiptTarget(p)}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-danger hover:bg-rose-100"
+                              title="মুছুন"
+                            >
+                              🗑
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            <div className="flex justify-end border-t border-border-base/60 pt-3">
+              <SecondaryButton type="button" onClick={() => setHistoryStudent(null)}>
+                বন্ধ করুন
+              </SecondaryButton>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ✨ ৩. নতুন ভর্তি ও পেমেন্ট মোডাল */}
+      <Modal
+        open={newStudentModalOpen}
+        onClose={() => setNewStudentModalOpen(false)}
+        title="নতুন ভর্তি ও বেতন গ্রহণ"
+        description="নতুন শিক্ষার্থীর তথ্য এন্ট্রি করে সাথে সাথে প্রথম মাসের বেতন জমা করুন।"
+      >
+        <form onSubmit={handleNewStudentAndPaymentSubmit} className="space-y-3.5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="শিক্ষার্থীর পূর্ণ নাম *" required>
+              <TextInput
+                required
+                placeholder="যেমন: মোঃ সাকিব হোসেন"
+                value={newStudentForm.full_name}
+                onChange={(e) => setNewStudentForm({ ...newStudentForm, full_name: e.target.value })}
+              />
+            </Field>
+
+            <Field label="মোবাইল নম্বর *" required>
+              <TextInput
+                type="tel"
+                required
+                placeholder="01XXXXXXXXX"
+                value={newStudentForm.phone}
+                onChange={(e) => setNewStudentForm({ ...newStudentForm, phone: e.target.value })}
+              />
+            </Field>
+          </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="বেতনের মাস *" required>
+            <Field label="ব্যাচ নির্বাচন করুন *" required>
               <Select
-                value={addMode === "existing" ? existingForm.for_month : newStudentForm.for_month}
+                value={newStudentForm.batch_id || ""}
                 onChange={(e) => {
-                  const val = e.target.value;
-                  if (addMode === "existing") setExistingForm({ ...existingForm, for_month: val });
-                  else setNewStudentForm({ ...newStudentForm, for_month: val });
+                  const bId = e.target.value;
+                  const b = batches.find((x) => x.id === bId);
+                  setNewStudentForm({
+                    ...newStudentForm,
+                    batch_id: bId,
+                    batch_name_snapshot: b?.name || "",
+                    amount: b?.name?.includes("Combine") ? 2000 : 1200,
+                  });
                 }}
+              >
+                {batches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <Field label="কলেজের নাম">
+              <TextInput
+                placeholder="যেমন: চৌদ্দগ্রাম সরকারি কলেজ"
+                value={newStudentForm.college}
+                onChange={(e) => setNewStudentForm({ ...newStudentForm, college: e.target.value })}
+              />
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="প্রথম বেতনের মাস *" required>
+              <Select
+                value={newStudentForm.for_month}
+                onChange={(e) => setNewStudentForm({ ...newStudentForm, for_month: e.target.value })}
               >
                 {monthOptions.map((m) => (
                   <option key={m.value} value={m.value}>
@@ -830,13 +757,8 @@ export default function PaymentsPageClient({
                 required
                 min={100}
                 step={50}
-                placeholder="1200"
-                value={addMode === "existing" ? existingForm.amount : newStudentForm.amount}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  if (addMode === "existing") setExistingForm({ ...existingForm, amount: val });
-                  else setNewStudentForm({ ...newStudentForm, amount: val });
-                }}
+                value={newStudentForm.amount}
+                onChange={(e) => setNewStudentForm({ ...newStudentForm, amount: Number(e.target.value) })}
               />
             </Field>
           </div>
@@ -846,13 +768,10 @@ export default function PaymentsPageClient({
               <label className="flex cursor-pointer items-center gap-2 font-body text-[13px] font-bold text-ink-800">
                 <input
                   type="radio"
-                  name="method"
+                  name="new_student_method"
                   value="cash"
-                  checked={addMode === "existing" ? existingForm.method === "cash" : newStudentForm.method === "cash"}
-                  onChange={() => {
-                    if (addMode === "existing") setExistingForm({ ...existingForm, method: "cash" });
-                    else setNewStudentForm({ ...newStudentForm, method: "cash" });
-                  }}
+                  checked={newStudentForm.method === "cash"}
+                  onChange={() => setNewStudentForm({ ...newStudentForm, method: "cash" })}
                   className="h-4 w-4 text-sky-600 focus:ring-sky-600"
                 />
                 <span>💵 নগদ / ক্যাশ (অফিসে জমা)</span>
@@ -861,13 +780,10 @@ export default function PaymentsPageClient({
               <label className="flex cursor-pointer items-center gap-2 font-body text-[13px] font-bold text-ink-800">
                 <input
                   type="radio"
-                  name="method"
+                  name="new_student_method"
                   value="online"
-                  checked={addMode === "existing" ? existingForm.method === "online" : newStudentForm.method === "online"}
-                  onChange={() => {
-                    if (addMode === "existing") setExistingForm({ ...existingForm, method: "online" });
-                    else setNewStudentForm({ ...newStudentForm, method: "online" });
-                  }}
+                  checked={newStudentForm.method === "online"}
+                  onChange={() => setNewStudentForm({ ...newStudentForm, method: "online" })}
                   className="h-4 w-4 text-sky-600 focus:ring-sky-600"
                 />
                 <span>🌐 অনলাইন / bKash</span>
@@ -875,42 +791,38 @@ export default function PaymentsPageClient({
             </div>
           </Field>
 
-          <Field label="মন্তব্য / নোট (ঐচ্ছিক)">
+          <Field label="মন্তব্য / নোট">
             <TextInput
-              placeholder="যেমন: অফিসে সরাসরি জমা / রসিদ নং ১২৩"
-              value={addMode === "existing" ? existingForm.note || "" : newStudentForm.note || ""}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (addMode === "existing") setExistingForm({ ...existingForm, note: val });
-                else setNewStudentForm({ ...newStudentForm, note: val });
-              }}
+              placeholder="যেমন: প্রথম মাসের বেতন গ্রহণ"
+              value={newStudentForm.note || ""}
+              onChange={(e) => setNewStudentForm({ ...newStudentForm, note: e.target.value })}
             />
           </Field>
 
           <div className="mt-5 flex justify-end gap-2 border-t border-border-base/60 pt-4">
-            <SecondaryButton type="button" onClick={() => setAddModalOpen(false)}>
+            <SecondaryButton type="button" onClick={() => setNewStudentModalOpen(false)}>
               বাতিল
             </SecondaryButton>
-            <PrimaryButton type="submit" disabled={saving}>
-              {saving ? "জমা হচ্ছে..." : "✓ পেমেন্ট গ্রহণ নিশ্চিত করুন"}
+            <PrimaryButton type="submit" disabled={savingNewStudent}>
+              {savingNewStudent ? "সংরক্ষণ হচ্ছে..." : "✓ ভর্তি ও বেতন গ্রহণ সম্পন্ন করুন"}
             </PrimaryButton>
           </div>
         </form>
       </Modal>
 
-      {/* পেমেন্ট এডিট মোডাল */}
+      {/* রসিদ এডিট মোডাল */}
       <Modal
-        open={!!editingPayment}
-        onClose={() => setEditingPayment(null)}
-        title="পেমেন্ট রেকর্ড সংশোধন"
-        description="টাকার পরিমাণ, বেতনের মাস বা মাধ্যম পরিবর্তন করুন।"
+        open={!!editingReceipt}
+        onClose={() => setEditingReceipt(null)}
+        title="রসিদ সংশোধন"
+        description="টাকার পরিমাণ, মাস বা মাধ্যম পরিবর্তন করুন।"
       >
-        <form onSubmit={handleEditSave} className="space-y-3.5">
+        <form onSubmit={handleEditReceiptSubmit} className="space-y-3.5">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="বেতনের মাস" required>
               <Select
-                value={editFormData.for_month}
-                onChange={(e) => setEditFormData({ ...editFormData, for_month: e.target.value })}
+                value={editReceiptForm.for_month}
+                onChange={(e) => setEditReceiptForm({ ...editReceiptForm, for_month: e.target.value })}
               >
                 {monthOptions.map((m) => (
                   <option key={m.value} value={m.value}>
@@ -925,16 +837,16 @@ export default function PaymentsPageClient({
                 type="number"
                 required
                 min={100}
-                value={editFormData.amount}
-                onChange={(e) => setEditFormData({ ...editFormData, amount: Number(e.target.value) })}
+                value={editReceiptForm.amount}
+                onChange={(e) => setEditReceiptForm({ ...editReceiptForm, amount: Number(e.target.value) })}
               />
             </Field>
           </div>
 
           <Field label="পেমেন্ট মাধ্যম">
             <Select
-              value={editFormData.method}
-              onChange={(e) => setEditFormData({ ...editFormData, method: e.target.value as PaymentMethod })}
+              value={editReceiptForm.method}
+              onChange={(e) => setEditReceiptForm({ ...editReceiptForm, method: e.target.value as PaymentMethod })}
             >
               <option value="cash">নগদ / ক্যাশ (অফিসে জমা)</option>
               <option value="online">অনলাইন / bKash</option>
@@ -944,27 +856,27 @@ export default function PaymentsPageClient({
           <Field label="মন্তব্য / নোট">
             <TextInput
               placeholder="নোট..."
-              value={editFormData.note}
-              onChange={(e) => setEditFormData({ ...editFormData, note: e.target.value })}
+              value={editReceiptForm.note}
+              onChange={(e) => setEditReceiptForm({ ...editReceiptForm, note: e.target.value })}
             />
           </Field>
 
           <div className="mt-5 flex justify-end gap-2 border-t border-border-base/60 pt-4">
-            <SecondaryButton type="button" onClick={() => setEditingPayment(null)}>
+            <SecondaryButton type="button" onClick={() => setEditingReceipt(null)}>
               বাতিল
             </SecondaryButton>
-            <PrimaryButton type="submit" disabled={saving}>
-              {saving ? "হালনাগাদ হচ্ছে..." : "সংরক্ষণ করুন"}
+            <PrimaryButton type="submit" disabled={savingEdit}>
+              {savingEdit ? "হালনাগাদ হচ্ছে..." : "সংরক্ষণ করুন"}
             </PrimaryButton>
           </div>
         </form>
       </Modal>
 
-      {/* ডিলিট কনফার্মেশন মোডাল */}
+      {/* রসিদ ডিলিট মোডাল */}
       <Modal
-        open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        title="পেমেন্ট রেকর্ড মুছে ফেলবেন?"
+        open={!!deleteReceiptTarget}
+        onClose={() => setDeleteReceiptTarget(null)}
+        title="রসিদ মুছে ফেলবেন?"
         maxWidth="max-w-sm"
       >
         <div className="space-y-4 text-center">
@@ -974,19 +886,19 @@ export default function PaymentsPageClient({
             </svg>
           </div>
           <p className="font-body text-[13.5px] text-ink-800">
-            আপনি কি নিশ্চিতভাবে <b className="text-sky-950">{formatTaka(deleteTarget?.amount || 0)}</b>-এর এই পেমেন্ট রেকর্ডটি মুছে ফেলতে চান?
+            আপনি কি নিশ্চিতভাবে <b className="text-sky-950">{formatTaka(deleteReceiptTarget?.amount || 0)}</b>-এর এই পেমেন্ট রসিদটি মুছে ফেলতে চান?
           </p>
           <div className="flex justify-center gap-2 pt-2">
-            <SecondaryButton type="button" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+            <SecondaryButton type="button" onClick={() => setDeleteReceiptTarget(null)} disabled={deletingReceipt}>
               বাতিল
             </SecondaryButton>
             <button
               type="button"
-              onClick={handleDeleteConfirm}
-              disabled={deleting}
+              onClick={handleDeleteReceiptConfirm}
+              disabled={deletingReceipt}
               className="rounded-full bg-danger px-5 py-2.5 font-body text-[13px] font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
             >
-              {deleting ? "মুছে ফেলা হচ্ছে..." : "হ্যাঁ, মুছে ফেলুন"}
+              {deletingReceipt ? "মুছে ফেলা হচ্ছে..." : "হ্যাঁ, মুছে ফেলুন"}
             </button>
           </div>
         </div>
