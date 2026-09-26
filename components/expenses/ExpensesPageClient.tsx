@@ -245,7 +245,6 @@ export default function ExpensesPageClient({
       setCalcInput((prev) => prev.slice(0, -1));
     } else if (val === "=") {
       try {
-        // নিরাপদ ম্যাথ ক্যালকুলেশন
         const sanitized = calcInput.replace(/[^0-9+\-*/.]/g, "");
         if (!sanitized) return;
         // eslint-disable-next-line no-new-func
@@ -265,7 +264,7 @@ export default function ExpensesPageClient({
   function pasteCalcToForm() {
     const num = Number(calcInput);
     if (isNaN(num) || num <= 0) {
-      showToast("আগে ক্যালকুলেটরে সঠিক হিসাব করুন।", "warn");
+      showToast("আগে ক্যালকুলেটরে সঠিক হিসাব করুন।", "info");
       return;
     }
     setFormData((prev) => ({ ...prev, amount: num }));
@@ -282,7 +281,6 @@ export default function ExpensesPageClient({
         subtitle="একাডেমির ভাড়া, বিদ্যুৎ বিল, প্রিন্টিং ও স্যারের দৈনন্দিন খরচের হিসাব"
         action={
           <div className="flex items-center gap-2">
-            {/* ক্যালকুলেটর টগল বাটন */}
             <button
               type="button"
               onClick={() => setCalcOpen((v) => !v)}
@@ -303,7 +301,7 @@ export default function ExpensesPageClient({
         }
       />
 
-      {/* 🧮 ইন-বিল্ট স্মার্ট ক্যালকুলেটর ড্রয়ার */}
+      {/* 🧮 ইন-বিল্ট স্মার্ট ক্যালকুলেটর */}
       {calcOpen && (
         <div className="mb-5 overflow-hidden rounded-[24px] border border-sky-200/90 bg-gradient-to-br from-sky-50 via-white to-sky-100/50 p-4 shadow-sh2 backdrop-blur-xl animate-soft-fade-in max-w-sm mx-auto">
           <div className="flex items-center justify-between border-b border-sky-200/70 pb-2 mb-3">
@@ -319,7 +317,6 @@ export default function ExpensesPageClient({
             </button>
           </div>
 
-          {/* স্ক্রিন ডিসপ্লে */}
           <div className="mb-3 rounded-xl border border-sky-300/80 bg-white p-3 text-right shadow-inner">
             <input
               type="text"
@@ -329,7 +326,6 @@ export default function ExpensesPageClient({
             />
           </div>
 
-          {/* বাটন প্যাড */}
           <div className="grid grid-cols-4 gap-1.5">
             {["C", "⌫", "/", "*", "7", "8", "9", "-", "4", "5", "6", "+", "1", "2", "3", "=", "0", ".", "00"].map((btn) => (
               <button
@@ -351,7 +347,6 @@ export default function ExpensesPageClient({
             ))}
           </div>
 
-          {/* রেজাল্ট ফর্মে পেস্ট করার ম্যাজিক বাটন */}
           <button
             type="button"
             onClick={pasteCalcToForm}
@@ -364,21 +359,18 @@ export default function ExpensesPageClient({
 
       {/* 💰 আর্থিক সারসংক্ষেপ ও নিট লাভ/ব্যালেন্স কার্ডস */}
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {/* চলতি মাসের খরচ */}
         <div className="rounded-2xl border border-rose-200/70 bg-gradient-to-br from-[#FFF1F2] via-white to-white p-4 shadow-sh1">
           <p className="font-body text-[11px] font-extrabold uppercase tracking-wider text-danger">চলতি মাসের খরচ</p>
           <p className="mt-1 font-body text-[20px] font-black text-rose-950 sm:text-[22px]">{formatTaka(stats.thisMonthExpenses)}</p>
           <span className="font-body text-[10.5px] font-semibold text-muted">আজকের খরচ: {formatTaka(stats.todayExpense)}</span>
         </div>
 
-        {/* চলতি মাসের কালেকশন */}
         <div className="rounded-2xl border border-sky-200/70 bg-gradient-to-br from-[#EBF5FF] via-white to-white p-4 shadow-sh1">
           <p className="font-body text-[11px] font-extrabold uppercase tracking-wider text-sky-700">চলতি মাসের আয়</p>
           <p className="mt-1 font-body text-[20px] font-black text-sky-950 sm:text-[22px]">{formatTaka(stats.thisMonthIncome)}</p>
           <span className="font-body text-[10.5px] font-semibold text-muted">শিক্ষার্থীদের থেকে প্রাপ্ত ফি</span>
         </div>
 
-        {/* 🎯 নিট লাভ / হাতে কত টাকা থাকল */}
         <div className={`rounded-2xl border p-4 shadow-sh1 bg-gradient-to-br via-white to-white ${
           stats.netProfit >= 0 ? "border-emerald-200/70 from-[#ECFDF5]" : "border-rose-300 from-[#FFF1F2]"
         }`}>
@@ -395,7 +387,6 @@ export default function ExpensesPageClient({
           <span className="font-body text-[10.5px] font-semibold text-muted">খরচ বাদ দিয়ে হাতে থাকা অর্থ</span>
         </div>
 
-        {/* সর্বমোট মোট খরচ */}
         <div className="rounded-2xl border border-amber-200/70 bg-gradient-to-br from-[#FFFBEB] via-white to-white p-4 shadow-sh1">
           <p className="font-body text-[11px] font-extrabold uppercase tracking-wider text-warn">সর্বমোট খরচ</p>
           <p className="mt-1 font-body text-[20px] font-black text-amber-950 sm:text-[22px]">{formatTaka(stats.totalAllTimeExpense)}</p>
@@ -586,7 +577,6 @@ export default function ExpensesPageClient({
         title={editingExpense ? "খরচের বিবরণ সম্পাদনা" : "নতুন খরচের এন্ট্রি দিন"}
         description="ভাড়া, বিল, প্রিন্টিং বা স্যারের দৈনন্দিন যেকোনো খরচের হিসাব রেকর্ড করুন।"
       >
-        {/* 📝 mehediadmin স্টাইলে স্মার্ট উদাহরণ লোড বাটন */}
         <div className="mb-4 flex items-center justify-between rounded-xl border border-sky-200 bg-sky-50/80 p-3">
           <div className="flex items-center gap-2">
             <span className="text-base">⚡</span>
@@ -701,4 +691,4 @@ export default function ExpensesPageClient({
       </Modal>
     </div>
   );
-    }
+}
