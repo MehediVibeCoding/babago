@@ -24,6 +24,7 @@ export interface StudentInput {
   phone: string;
   guardian_phone: string;
   status: StudentStatus;
+  created_at?: string; // 🎯 কাস্টম বা এডিটেবল ভর্তির তারিখ (YYYY-MM-DD)
 }
 
 // ১. শিক্ষার্থীদের তালিকা ও সংশ্লিষ্ট তথ্য লোড করা
@@ -55,7 +56,7 @@ export async function getStudentsData(): Promise<{
   };
 }
 
-// ২. নতুন শিক্ষার্থী যুক্ত করা
+// ২. নতুন শিক্ষার্থী যুক্ত করা (কাস্টম ভর্তির তারিখ সহ)
 export async function createStudent(input: StudentInput): Promise<StudentActionResult> {
   const supabase = await createClient();
 
@@ -64,19 +65,25 @@ export async function createStudent(input: StudentInput): Promise<StudentActionR
   if (!name) return { ok: false, message: "শিক্ষার্থীর নাম আবশ্যক।" };
   if (!phone) return { ok: false, message: "মোবাইল নম্বর আবশ্যক।" };
 
+  const insertData: Record<string, unknown> = {
+    full_name: name,
+    college: input.college?.trim() || "",
+    college_roll: input.college_roll?.trim() || "",
+    group_name: input.group_name?.trim() || "বিজ্ঞান বিভাগ",
+    batch_id: input.batch_id || null,
+    batch_name_snapshot: input.batch_name_snapshot || null,
+    phone,
+    guardian_phone: input.guardian_phone?.trim() || "",
+    status: input.status || "confirmed",
+  };
+
+  if (input.created_at) {
+    insertData.created_at = new Date(input.created_at).toISOString();
+  }
+
   const { data, error } = await supabase
     .from(STUDENTS_TABLE)
-    .insert({
-      full_name: name,
-      college: input.college?.trim() || "",
-      college_roll: input.college_roll?.trim() || "",
-      group_name: input.group_name?.trim() || "বিজ্ঞান বিভাগ",
-      batch_id: input.batch_id || null,
-      batch_name_snapshot: input.batch_name_snapshot || null,
-      phone,
-      guardian_phone: input.guardian_phone?.trim() || "",
-      status: input.status || "confirmed",
-    })
+    .insert(insertData)
     .select()
     .single();
 
@@ -85,11 +92,12 @@ export async function createStudent(input: StudentInput): Promise<StudentActionR
   }
 
   revalidatePath("/students");
+  revalidatePath("/payments");
   revalidatePath("/");
   return { ok: true, student: data as Student };
 }
 
-// ৩. শিক্ষার্থী তথ্য আপডেট করা
+// ৩. শিক্ষার্থী তথ্য ও ভর্তির তারিখ আপডেট করা
 export async function updateStudent(id: string, input: StudentInput): Promise<StudentActionResult> {
   const supabase = await createClient();
 
@@ -98,19 +106,25 @@ export async function updateStudent(id: string, input: StudentInput): Promise<St
   if (!name) return { ok: false, message: "শিক্ষার্থীর নাম আবশ্যক।" };
   if (!phone) return { ok: false, message: "মোবাইল নম্বর আবশ্যক।" };
 
+  const updateData: Record<string, unknown> = {
+    full_name: name,
+    college: input.college?.trim() || "",
+    college_roll: input.college_roll?.trim() || "",
+    group_name: input.group_name?.trim() || "বিজ্ঞান বিভাগ",
+    batch_id: input.batch_id || null,
+    batch_name_snapshot: input.batch_name_snapshot || null,
+    phone,
+    guardian_phone: input.guardian_phone?.trim() || "",
+    status: input.status || "confirmed",
+  };
+
+  if (input.created_at) {
+    updateData.created_at = new Date(input.created_at).toISOString();
+  }
+
   const { data, error } = await supabase
     .from(STUDENTS_TABLE)
-    .update({
-      full_name: name,
-      college: input.college?.trim() || "",
-      college_roll: input.college_roll?.trim() || "",
-      group_name: input.group_name?.trim() || "বিজ্ঞান বিভাগ",
-      batch_id: input.batch_id || null,
-      batch_name_snapshot: input.batch_name_snapshot || null,
-      phone,
-      guardian_phone: input.guardian_phone?.trim() || "",
-      status: input.status || "confirmed",
-    })
+    .update(updateData)
     .eq("id", id)
     .select()
     .single();
@@ -120,11 +134,12 @@ export async function updateStudent(id: string, input: StudentInput): Promise<St
   }
 
   revalidatePath("/students");
+  revalidatePath("/payments");
   revalidatePath("/");
   return { ok: true, student: data as Student };
 }
 
-// ৪. শিক্ষার্থীর স্ট্যাটাস পরিবর্তন (confirmed / pending / inactive)
+// ৪. শিক্ষার্থীর স্ট্যাটাস পরিবর্তন
 export async function updateStudentStatus(id: string, status: StudentStatus): Promise<StudentActionResult> {
   const supabase = await createClient();
 
@@ -140,6 +155,7 @@ export async function updateStudentStatus(id: string, status: StudentStatus): Pr
   }
 
   revalidatePath("/students");
+  revalidatePath("/payments");
   revalidatePath("/");
   return { ok: true, student: data as Student };
 }
@@ -155,6 +171,7 @@ export async function deleteStudent(id: string): Promise<StudentActionResult> {
   }
 
   revalidatePath("/students");
+  revalidatePath("/payments");
   revalidatePath("/");
   return { ok: true };
-      }
+}
