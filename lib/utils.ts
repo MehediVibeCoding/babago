@@ -19,42 +19,64 @@ export function bengaliDayName(dayIndex: number): string {
 }
 
 /**
- * ব্যাচের schedule ফ্রি-টেক্সট ফিল্ড (যেমন "শনি, সোম, বুধ — বিকাল ৪:০০ টা") থেকে
- * আন্দাজ করে আজকে এই ব্যাচের ক্লাস আছে কিনা। এটা একটা heuristic — schedule
- * এখনো structured (days[]) না হওয়ায় টেক্সট ম্যাচ করা হচ্ছে। ভবিষ্যতে batches
- * টেবিলে আলাদা days: text[] কলাম যোগ করলে এই ফাংশনটা আর দরকার হবে না।
+ * ব্যাচের schedule ফ্রি-টেক্সট ফিল্ড থেকে আজ ক্লাস আছে কিনা বের করে
  */
 export function isBatchToday(schedule: string, today: Date = new Date()): boolean {
   const dayIdx = today.getDay(); // 0=রবি ... 6=শনি
   const todayName = BENGALI_DAY_NAMES[dayIdx];
 
   if (schedule.includes(todayName)) return true;
-
-  // "সপ্তাহে ৬ দিন" জাতীয় টেক্সট থাকলে ধরে নেওয়া হচ্ছে শুক্রবার ছাড়া বাকি সব দিন ক্লাস আছে
   if (schedule.includes("সপ্তাহে") && dayIdx !== 5) return true;
 
   return false;
 }
 
-/** এন্ট্রোলমেন্টের তারিখ থেকে আজ পর্যন্ত (বর্তমান মাস ধরে) মোট কত মাস হয়েছে */
-export function monthsEnrolled(createdAt: string, today: Date = new Date()): number {
-  const start = new Date(createdAt);
-  const months =
-    (today.getFullYear() - start.getFullYear()) * 12 + (today.getMonth() - start.getMonth()) + 1;
-  return Math.max(1, months);
+/**
+ * 🎯 নিখুঁত ডায়নামিক সাইকেল হিসাব:
+ * ভর্তির তারিখ (যেমন ১৫ তারিখ) থেকে আজ পর্যন্ত মোট কয়টি "পূর্ণাঙ্গ মাস" সমাপ্ত হয়েছে তা বের করে।
+ * চলতি রানিং সাইকেলকে কখনো গণনা করে না (Grace Period)।
+ */
+export function getCompletedBillingMonths(
+  enrollmentDateStr: string,
+  today: Date = new Date()
+): number {
+  if (!enrollmentDateStr) return 0;
+  const start = new Date(enrollmentDateStr.slice(0, 10) + "T00:00:00");
+  if (isNaN(start.getTime()) || start > today) return 0;
+
+  let months =
+    (today.getFullYear() - start.getFullYear()) * 12 +
+    (today.getMonth() - start.getMonth());
+
+  // আজকের তারিখ যদি ভর্তির দিনের চেয়ে ছোট হয়, তার মানে চলতি মাসের সাইকেল এখনো চলছে (পূর্ণ হয়নি)
+  if (today.getDate() < start.getDate()) {
+    months -= 1;
+  }
+
+  return Math.max(0, months);
 }
 
-/** একজন শিক্ষার্থীর জন্য কত মাসের বেতন বাকি আছে হিসাব করে (paid মাস বাদ দিয়ে) */
+/** এনরোলমেন্টের মোট সময়কাল */
+export function monthsEnrolled(createdAt: string, today: Date = new Date()): number {
+  return getCompletedBillingMonths(createdAt, today);
+}
+
+/**
+ * 🎯 আসল বকেয়া মাস গণনা:
+ * মোট সমাপ্ত হওয়া সাইকেল সংখ্যা থেকে মোট পরিশোধিত মাসের সংখ্যা বিয়োগ করে।
+ * রানিং মাসের কোনো বকেয়া দেখাবে না।
+ */
 export function dueMonthsForStudent(
   student: Student,
   payments: Payment[],
   today: Date = new Date()
 ): number {
-  const totalMonths = monthsEnrolled(student.created_at, today);
+  const completedCycles = getCompletedBillingMonths(student.created_at, today);
   const distinctPaidMonths = new Set(
     payments.filter((p) => p.student_id === student.id).map((p) => p.for_month.slice(0, 7))
   ).size;
-  return Math.max(0, totalMonths - distinctPaidMonths);
+
+  return Math.max(0, completedCycles - distinctPaidMonths);
 }
 
 export function totalPaidByStudent(studentId: string, payments: Payment[]): number {
