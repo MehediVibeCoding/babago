@@ -19,7 +19,64 @@ export interface VideoLectureInput {
   sort_order?: number;
 }
 
-// ১. সকল ভিডিও লেকচার লোড করা
+// ১. ইউটিউব ভিডিও আইডি পার্সার
+function parseYouTubeId(url: string): string | null {
+  if (!url) return null;
+  const regExp = /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/;
+  const match = url.match(regExp);
+  return match ? match[1] : null;
+}
+
+// ২. ফেসবুক বা যেকোনো ভিডিও লিংক থেকে আসল থাম্বনেইল (OpenGraph) বের করার ইঞ্জিন
+async function extractOpenGraphImage(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+      },
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+
+    const ogMatch =
+      html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i) ||
+      html.match(/<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i) ||
+      html.match(/<meta\s+name=["']twitter:image["']\s+content=["']([^"']+)["']/i);
+
+    if (ogMatch && ogMatch[1]) {
+      return ogMatch[1].replace(/&amp;/g, "&");
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ৩. অটো-থাম্বনেইল রেজলভার
+async function resolveAutoThumbnail(videoUrl: string, customThumb?: string | null): Promise<string | null> {
+  if (customThumb?.trim()) return customThumb.trim();
+
+  // ক. ইউটিউব হলে
+  const ytId = parseYouTubeId(videoUrl);
+  if (ytId) {
+    return `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
+  }
+
+  // খ. ফেসবুক বা অন্য লিংক হলে
+  const ogImg = await extractOpenGraphImage(videoUrl);
+  if (ogImg) return ogImg;
+
+  return null;
+}
+
+// ৪. ক্লায়েন্ট থেকে লাইভ থাম্বনেইল ডিটেক্ট করার সার্ভার অ্যাকশন
+export async function fetchLiveThumbnailAction(videoUrl: string): Promise<{ thumbnailUrl: string | null }> {
+  const thumb = await resolveAutoThumbnail(videoUrl);
+  return { thumbnailUrl: thumb };
+}
+
+// ৫. সকল ভিডিও লেকচার লোড করা
 export async function getVideoLectures(): Promise<VideoLecture[]> {
   const supabase = await createClient();
 
@@ -37,7 +94,7 @@ export async function getVideoLectures(): Promise<VideoLecture[]> {
   return (data || []) as VideoLecture[];
 }
 
-// ২. নতুন ভিডিও লেকচার যুক্ত করা
+// ৬. নতুন ভিডিও লেকচার যুক্ত করা (অটোমেটিক আসল থাম্বনেইল সহ)
 export async function createVideoLecture(
   input: VideoLectureInput
 ): Promise<VideoActionResult> {
@@ -47,14 +104,17 @@ export async function createVideoLecture(
   const videoUrl = input.video_url?.trim();
 
   if (!title) return { ok: false, message: "ভিডিওর শিরোনাম দিন।" };
-  if (!videoUrl) return { ok: false, message: "ইউটিউব বা ভিডিওর লিংক দিন।" };
+  if (!videoUrl) return { ok: false, message: "ফেসবুক বা ইউটিউব ভিডিওর লিংক দিন।" };
+
+  // সার্ভার স্বয়ংক্রিয়ভাবে ভিডিও লিংক থেকে আসল থাম্বনেইল টেনে বের করবে
+  const autoThumbnail = await resolveAutoThumbnail(videoUrl, input.thumbnail_url);
 
   const { data, error } = await supabase
     .from(TABLE)
     .insert({
       title,
       video_url: videoUrl,
-      thumbnail_url: input.thumbnail_url?.trim() || null,
+      thumbnail_url: autoThumbnail,
       sort_order: input.sort_order ?? 0,
     })
     .select()
@@ -69,7 +129,7 @@ export async function createVideoLecture(
   return { ok: true, video: data as VideoLecture };
 }
 
-// ৩. ভিডিও লেকচার আপডেট করা
+// ৭. ভিডিও লেকচার আপডেট করা
 export async function updateVideoLecture(
   id: string,
   input: VideoLectureInput
@@ -80,14 +140,16 @@ export async function updateVideoLecture(
   const videoUrl = input.video_url?.trim();
 
   if (!title) return { ok: false, message: "ভিডিওর শিরোনাম দিন।" };
-  if (!videoUrl) return { ok: false, message: "ইউটিউব বা ভিডিওর লিংক দিন।" };
+  if (!videoUrl) return { ok: false, message: "ভিডিওর লিংক দিন।" };
+
+  const autoThumbnail = await resolveAutoThumbnail(videoUrl, input.thumbnail_url);
 
   const { data, error } = await supabase
     .from(TABLE)
     .update({
       title,
       video_url: videoUrl,
-      thumbnail_url: input.thumbnail_url?.trim() || null,
+      thumbnail_url: autoThumbnail,
       sort_order: input.sort_order ?? 0,
     })
     .eq("id", id)
@@ -103,7 +165,7 @@ export async function updateVideoLecture(
   return { ok: true, video: data as VideoLecture };
 }
 
-// ৪. ভিডিও লেকচার মুছে ফেলা
+// ৮. ভিডিও লেকচার মুছে ফেলা
 export async function deleteVideoLecture(id: string): Promise<VideoActionResult> {
   const supabase = await createClient();
 
@@ -116,4 +178,4 @@ export async function deleteVideoLecture(id: string): Promise<VideoActionResult>
   revalidatePath("/videos");
   revalidatePath("/");
   return { ok: true };
-  }
+}
