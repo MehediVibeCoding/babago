@@ -6,6 +6,7 @@ import {
   createVideoLecture,
   updateVideoLecture,
   deleteVideoLecture,
+  fetchLiveThumbnailAction,
   type VideoLectureInput,
 } from "@/app/actions/videos";
 import { useToast } from "@/components/admin/Toast";
@@ -29,18 +30,22 @@ const EMPTY_FORM: VideoLectureInput = {
 
 // 🎯 উদাহরণ টেমপ্লেট
 const EXAMPLE_VIDEO_TEMPLATE: VideoLectureInput = {
-  title: "HSC English 1st Paper সম্পূর্ণ সিলেবাস ও মানবন্টন বিশ্লেষণ (HSC-28)",
+  title: "HSC English 1st Paper সম্পূর্ণ সিলেবাস ও প্রস্তুতি গাইডলাইন",
   video_url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-  thumbnail_url: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80",
+  thumbnail_url: "",
   sort_order: 1,
 };
 
-// ইউটিউব ভিডিও আইডি এক্সট্র্যাক্ট করার স্মার্ট হেল্পার
 function parseYouTubeId(url: string): string | null {
   if (!url) return null;
   const regExp = /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/;
   const match = url.match(regExp);
   return match ? match[1] : null;
+}
+
+function isFacebookUrl(url: string): boolean {
+  if (!url) return false;
+  return url.includes("facebook.com") || url.includes("fb.watch");
 }
 
 export default function VideosPageClient({
@@ -57,9 +62,11 @@ export default function VideosPageClient({
   const [modalOpen, setModalOpen] = useState(false);
   const [editingVideo, setEditingVideo] = useState<VideoLecture | null>(null);
   const [formData, setFormData] = useState<VideoLectureInput>(EMPTY_FORM);
+  const [detectedThumb, setDetectedThumb] = useState<string | null>(null);
+  const [fetchingThumb, setFetchingThumb] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // লাইভ প্লেয়ার মোডাল
+  // লাইভ প্লেয়ার মোডাল
   const [activePlayVideo, setActivePlayVideo] = useState<VideoLecture | null>(null);
 
   // ডিলিট স্টেট
@@ -77,6 +84,7 @@ export default function VideosPageClient({
   function openAddModal() {
     setEditingVideo(null);
     setFormData(EMPTY_FORM);
+    setDetectedThumb(null);
     setModalOpen(true);
   }
 
@@ -88,12 +96,33 @@ export default function VideosPageClient({
       thumbnail_url: video.thumbnail_url || "",
       sort_order: video.sort_order,
     });
+    setDetectedThumb(video.thumbnail_url || null);
     setModalOpen(true);
   }
 
   function handleLoadExample() {
     setFormData(EXAMPLE_VIDEO_TEMPLATE);
-    showToast("উদাহরণ ভিডিও লিংক ও শিরোনাম লোড হয়েছে ✓", "info");
+    setDetectedThumb("https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg");
+    showToast("উদাহরণ ভিডিও লিংক লোড হয়েছে ✓", "info");
+  }
+
+  // ⚡ ভিডিও লিংক ইনপুট হওয়া মাত্রই লাইভ অটো-থাম্বনেইল সনাক্তকরণ
+  async function handleUrlBlur(url: string) {
+    const cleanUrl = url.trim();
+    if (!cleanUrl) return;
+
+    setFetchingThumb(true);
+    try {
+      const res = await fetchLiveThumbnailAction(cleanUrl);
+      if (res.thumbnailUrl) {
+        setDetectedThumb(res.thumbnailUrl);
+        setFormData((prev) => ({ ...prev, thumbnail_url: res.thumbnailUrl }));
+      }
+    } catch {
+      // fallback
+    } finally {
+      setFetchingThumb(false);
+    }
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -103,7 +132,7 @@ export default function VideosPageClient({
       return;
     }
     if (!formData.video_url.trim()) {
-      showToast("ইউটিউব ভিডিওর লিংক দিন।", "error");
+      showToast("ভিডিওর লিংক দিন।", "error");
       return;
     }
 
@@ -113,20 +142,20 @@ export default function VideosPageClient({
       setSaving(false);
       if (res.ok && res.video) {
         setVideos((prev) => prev.map((v) => (v.id === editingVideo.id ? res.video! : v)));
-        showToast("ভিডিও লেকচার সফলভাবে আপডেট হয়েছে।", "success");
+        showToast("ভিডিও লেকচার সফলভাবে আপডেট হয়েছে।", "success");
         setModalOpen(false);
       } else {
-        showToast(res.message || "আপডেট ব্যর্থ হয়েছে।", "error");
+        showToast(res.message || "আপডেট ব্যর্থ হয়েছে।", "error");
       }
     } else {
       const res = await createVideoLecture(formData);
       setSaving(false);
       if (res.ok && res.video) {
         setVideos((prev) => [res.video!, ...prev]);
-        showToast("নতুন ভিডিও লেকচার যুক্ত হয়েছে!", "success");
+        showToast("নতুন ভিডিও সফলভাবে যুক্ত হয়েছে!", "success");
         setModalOpen(false);
       } else {
-        showToast(res.message || "ভিডিও সংরক্ষণ করা যায়নি।", "error");
+        showToast(res.message || "ভিডিও সংরক্ষণ করা যায়নি।", "error");
       }
     }
   }
@@ -138,10 +167,10 @@ export default function VideosPageClient({
     setDeleting(false);
     if (res.ok) {
       setVideos((prev) => prev.filter((v) => v.id !== deleteTarget.id));
-      showToast("ভিডিও মুছে ফেলা হয়েছে।", "success");
+      showToast("ভিডিও মুছে ফেলা হয়েছে।", "success");
       setDeleteTarget(null);
     } else {
-      showToast(res.message || "মুছে ফেলা যায়নি।", "error");
+      showToast(res.message || "মুছে ফেলা যায়নি।", "error");
     }
   }
 
@@ -149,7 +178,7 @@ export default function VideosPageClient({
     <div>
       <PageHeader
         title="ভিডিও লেকচার ব্যবস্থাপনা"
-        subtitle="মেইন ওয়েবসাইটের 'সর্বশেষ ভিডিও' সেকশনে প্রদর্শিত ইউটিউব ক্লাস ও রিলস লিংক পরিচালনা করুন"
+        subtitle="ইউটিউব বা ফেসবুক ভিডিও লিংক যুক্ত করুন — সিস্টেম স্বয়ংক্রিয়ভাবে আসল থাম্বনেইল সনাক্ত করবে"
         action={
           <PrimaryButton onClick={openAddModal}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -185,7 +214,7 @@ export default function VideosPageClient({
           </svg>
           <input
             type="text"
-            placeholder="ভিডিও শিরোনাম বা লিংক দিয়ে খুঁজুন..."
+            placeholder="ভিডিও শিরোনাম বা লিংক দিয়ে খুঁজুন..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-[38px] w-full rounded-full border border-border-base/80 bg-surface-muted/60 pl-10 pr-4 font-body text-[12.5px] text-ink-800 placeholder:text-muted/70 outline-none focus:border-sky-600 focus:bg-white"
@@ -197,19 +226,20 @@ export default function VideosPageClient({
       {filteredVideos.length === 0 ? (
         <div className="rounded-[24px] border border-border-base/80 bg-white p-8 shadow-sh1">
           <EmptyState
-            title="কোনো ভিডিও লেকচার পাওয়া যায়নি"
-            hint="ইউটিউব ভিডিও বা ক্লাস লেকচারের লিংক যুক্ত করুন।"
+            title="কোনো ভিডিও লেকচার পাওয়া যায়নি"
+            hint="ইউটিউব বা ফেসবুক ভিডিওর লিংক যুক্ত করুন।"
           />
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredVideos.map((video) => {
+            const isFb = isFacebookUrl(video.video_url);
             const ytId = parseYouTubeId(video.video_url);
+
+            // আসল থাম্বনেইল নির্ণয় (কোনো ডামি বইয়ের ছবি ছাড়া)
             const thumbSrc =
               video.thumbnail_url ||
-              (ytId
-                ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
-                : "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80");
+              (ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null);
 
             return (
               <div
@@ -217,26 +247,36 @@ export default function VideosPageClient({
                 className="hover-lift flex flex-col justify-between overflow-hidden rounded-[24px] border border-border-base/90 bg-white p-3.5 shadow-sh1 transition-all duration-brand hover:shadow-sh2"
               >
                 <div>
-                  {/* ভিডিও থাম্বনেইল ফ্রেম (ক্লিক করলে প্লেয়ার মোডাল খুলবে) */}
+                  {/* থাম্বনেইল ফ্রেম */}
                   <div
                     onClick={() => setActivePlayVideo(video)}
-                    className="group relative aspect-video w-full cursor-pointer overflow-hidden rounded-2xl bg-sky-950 border border-border-base/60"
+                    className="group relative aspect-video w-full cursor-pointer overflow-hidden rounded-2xl bg-sky-950 border border-border-base/60 flex items-center justify-center"
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={thumbSrc}
-                      alt={video.title}
-                      className="h-full w-full object-cover opacity-90 transition-transform duration-300 group-hover:scale-105"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src =
-                          "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80";
-                      }}
-                    />
+                    {thumbSrc ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={thumbSrc}
+                        alt={video.title}
+                        className="h-full w-full object-cover opacity-90 transition-transform duration-300 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="text-center p-4">
+                        <span className="text-3xl">{isFb ? "📘" : "🎬"}</span>
+                        <p className="mt-1 font-body text-xs font-bold text-sky-200">{isFb ? "Facebook Video" : "Video Lecture"}</p>
+                      </div>
+                    )}
 
-                    {/* লাল/সাদা প্লে বাটন আইকন */}
+                    {/* প্ল্যাটফর্ম ব্যাজ */}
+                    <span className="absolute top-2 left-2 rounded-md bg-black/60 px-2 py-0.5 font-body text-[10px] font-bold text-white backdrop-blur-sm">
+                      {isFb ? "📘 Facebook" : "📺 YouTube"}
+                    </span>
+
+                    {/* প্লে বাটন */}
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-white shadow-lg transition-transform group-hover:scale-110">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                      <div className={`flex h-11 w-11 items-center justify-center rounded-full text-white shadow-lg transition-transform group-hover:scale-110 ${
+                        isFb ? "bg-blue-600" : "bg-red-600"
+                      }`}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                           <polygon points="5 3 19 12 5 21 5 3" />
                         </svg>
                       </div>
@@ -244,24 +284,13 @@ export default function VideosPageClient({
                   </div>
 
                   {/* ভিডিওর শিরোনাম */}
-                  <h3 className="mt-3 font-body text-[14.5px] font-black leading-snug text-sky-950 line-clamp-2">
+                  <h3 className="mt-3 font-body text-[14px] font-black leading-snug text-sky-950 line-clamp-2">
                     {video.title}
                   </h3>
-
-                  {/* ইউটিউব লিংক */}
-                  <a
-                    href={video.video_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-1.5 inline-flex items-center gap-1 font-body text-[11.5px] font-bold text-sky-600 hover:text-sky-700 hover:underline"
-                  >
-                    <span>📺 YouTube-এ খুলুন</span>
-                    <span className="text-[10px]">↗</span>
-                  </a>
                 </div>
 
                 {/* কার্ড ফুটার */}
-                <div className="mt-3.5 flex items-center justify-between border-t border-border-base/60 pt-2.5">
+                <div className="mt-3 flex items-center justify-between border-t border-border-base/60 pt-2.5">
                   <span className="font-body text-[11px] font-medium text-muted">
                     {formatBengaliDate(video.created_at.slice(0, 10))}
                   </span>
@@ -296,73 +325,76 @@ export default function VideosPageClient({
         </div>
       )}
 
-      {/* নতুন ভিডিও যুক্ত / এডিট মোডাল */}
+      {/* নতুন ভিডিও যুক্ত / এডিট মোডাল (স্মার্ট অটো-থাম্বনেইল সহ) */}
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         title={editingVideo ? "ভিডিও লেকচার সম্পাদনা" : "নতুন ভিডিও লেকচার যুক্ত করুন"}
-        description="ইউটিউব ভিডিও লিংক ও শিরোনাম প্রদান করুন।"
+        description="ইউটিউব বা ফেসবুক ভিডিওর লিংক পেস্ট করুন — আসল থাম্বনেইল স্বয়ংক্রিয়ভাবে লোড হবে।"
       >
         <div className="mb-4 flex items-center justify-between rounded-xl border border-sky-200 bg-sky-50/80 p-3">
           <div className="flex items-center gap-2">
             <span className="text-base">⚡</span>
             <div>
-              <p className="font-body text-[12px] font-bold text-sky-950">নমুনা ভিডিও লিংক</p>
-              <p className="font-body text-[10.5px] text-sky-800">ডেমো লেকচার লোড করুন</p>
+              <p className="font-body text-[12px] font-bold text-sky-950">স্মার্ট থাম্বনেইল ডিটেক্টর</p>
+              <p className="font-body text-[10.5px] text-sky-800">লিংক দিলে স্বয়ংক্রিয়ভাবে কাভার ফটো সনাক্ত হয়</p>
             </div>
           </div>
           <button
             type="button"
             onClick={handleLoadExample}
-            className="rounded-lg bg-white px-3 py-1.5 font-body text-[11.5px] font-extrabold text-sky-700 shadow-xs transition-colors hover:bg-sky-600 hover:text-white"
+            className="rounded-lg bg-white px-3 py-1.5 font-body text-[11.5px] font-extrabold text-sky-700 shadow-xs hover:bg-sky-600 hover:text-white transition-colors"
           >
             📝 উদাহরণ লোড করুন
           </button>
         </div>
 
         <form onSubmit={handleSave} className="space-y-3.5">
+          {/* ভিডিও লিংক */}
+          <Field label="ভিডিও লিংক (YouTube / Facebook URL) *" required>
+            <TextInput
+              type="url"
+              required
+              placeholder="https://www.youtube.com/... বা https://www.facebook.com/.../videos/..."
+              value={formData.video_url}
+              onChange={(e) => {
+                const val = e.target.value;
+                setFormData({ ...formData, video_url: val });
+              }}
+              onBlur={(e) => handleUrlBlur(e.target.value)}
+            />
+          </Field>
+
+          {/* 🖼️ লাইভ সনাক্তকৃত আসল থাম্বনেইল প্রিভিউয়ার */}
+          {fetchingThumb && (
+            <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-center animate-pulse">
+              <p className="font-body text-xs font-bold text-sky-800">ভিডিওর আসল থাম্বনেইল স্ক্যান হচ্ছে...</p>
+            </div>
+          )}
+
+          {detectedThumb && !fetchingThumb && (
+            <div className="overflow-hidden rounded-xl border border-border-base bg-slate-900 p-2 text-center">
+              <div className="flex items-center justify-between px-1 pb-1.5 text-left">
+                <span className="font-body text-[11px] font-bold text-emerald-400">✓ আসল থাম্বনেইল সনাক্ত হয়েছে</span>
+                <span className="font-body text-[10px] text-slate-400">স্বয়ংক্রিয়ভাবে সেভ হবে</span>
+              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={detectedThumb}
+                alt="Detected Video Thumbnail"
+                className="mx-auto max-h-40 rounded-lg aspect-video object-cover shadow-2xs"
+                onError={() => setDetectedThumb(null)}
+              />
+            </div>
+          )}
+
+          {/* ভিডিওর শিরোনাম */}
           <Field label="ভিডিওর শিরোনাম *" required>
             <TextInput
               required
-              placeholder="যেমন: HSC English: 1st Paper Syllabus & Marks Breakdown"
+              placeholder="যেমন: HSC English: 1st Paper সম্পূর্ণ সিলেবাস ও প্রস্তুতি"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-            />
-          </Field>
-
-          <Field label="ইউটিউব বা ভিডিও লিংক (YouTube URL) *" required>
-            <TextInput
-              type="url"
-              required
-              placeholder="https://www.youtube.com/watch?v=... বা https://youtu.be/..."
-              value={formData.video_url}
-              onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
-            />
-          </Field>
-
-          {/* 🎬 লাইভ প্রিভিউয়ার */}
-          {(() => {
-            const ytId = parseYouTubeId(formData.video_url);
-            if (!ytId) return null;
-            return (
-              <div className="overflow-hidden rounded-xl border border-border-base bg-surface-muted/50 p-2 text-center">
-                <p className="mb-1 text-[11px] font-bold text-muted">ইউটিউব প্রিভিউ থাম্বনেইল:</p>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
-                  alt="YouTube Preview"
-                  className="mx-auto max-h-36 rounded-lg object-cover shadow-2xs"
-                />
-              </div>
-            );
-          })()}
-
-          <Field label="কাস্টম থাম্বনেইল ছবির লিংক (ঐচ্ছিক)">
-            <TextInput
-              type="url"
-              placeholder="https://images.unsplash.com/... বা ক্লাউডিনারি লিংক"
-              value={formData.thumbnail_url || ""}
-              onChange={(e) => setFormData({ ...formData, thumbnail_url: e.target.value })}
             />
           </Field>
 
@@ -381,7 +413,7 @@ export default function VideosPageClient({
       <Modal
         open={!!activePlayVideo}
         onClose={() => setActivePlayVideo(null)}
-        title={activePlayVideo?.title || "ভিডিও প্লেয়ার"}
+        title={activePlayVideo?.title || "ভিডিও প্লেয়ার"}
         maxWidth="max-w-3xl"
       >
         {activePlayVideo && (
@@ -402,15 +434,18 @@ export default function VideosPageClient({
                 );
               }
               return (
-                <div className="rounded-xl bg-surface-muted p-8 text-center font-body text-[13px] text-muted">
-                  সরাসরি ইউটিউবে দেখতে:{" "}
+                <div className="rounded-2xl bg-sky-950 p-8 text-center text-white">
+                  <span className="text-4xl">📘</span>
+                  <h4 className="mt-2 font-body text-base font-bold">Facebook Video Link</h4>
+                  <p className="mt-1 font-body text-xs text-sky-200">ফেসবুক ভিডিওটি সরাসরি দেখতে নিচের বাটনে ক্লিক করুন</p>
                   <a
                     href={activePlayVideo.video_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-bold text-sky-600 underline"
+                    className="mt-4 inline-flex items-center gap-2 rounded-full bg-blue-600 px-6 py-2.5 font-body text-xs font-bold text-white shadow-md hover:bg-blue-700 transition-colors"
                   >
-                    লিংকে ক্লিক করুন
+                    <span>Facebook-এ ভিডিওটি দেখুন</span>
+                    <span>↗</span>
                   </a>
                 </div>
               );
@@ -458,4 +493,4 @@ export default function VideosPageClient({
       </Modal>
     </div>
   );
-    }
+}
