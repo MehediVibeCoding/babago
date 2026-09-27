@@ -13,8 +13,9 @@ export interface ClassroomActionResult {
 }
 
 export interface ClassroomPhotoInput {
-  caption: string;
   image_url: string;
+  slot_type?: "hero_16_9" | "sub_9_16";
+  focal_position?: "top" | "center" | "bottom";
   sort_order?: number;
 }
 
@@ -36,24 +37,23 @@ export async function getClassroomPhotos(): Promise<ClassroomPhoto[]> {
   return (data || []) as ClassroomPhoto[];
 }
 
-// ২. নতুন ক্লাসরুম ছবি যুক্ত করা
+// ২. নতুন ক্লাসরুম ছবি যুক্ত করা (সম্পূর্ণ ক্যাপশন-মুক্ত)
 export async function createClassroomPhoto(
   input: ClassroomPhotoInput
 ): Promise<ClassroomActionResult> {
   const supabase = await createClient();
-
-  const caption = input.caption?.trim();
   const imageUrl = input.image_url?.trim();
 
-  if (!imageUrl) return { ok: false, message: "ছবির লিংক (Cloudinary/Image URL) দিন।" };
-  if (!caption) return { ok: false, message: "ছবির একটি সুন্দর ক্যাপশন দিন।" };
+  if (!imageUrl) {
+    return { ok: false, message: "ছবির সঠিক লিংক (Cloudinary / Image URL) দিন।" };
+  }
 
   const { data, error } = await supabase
     .from(TABLE)
     .insert({
-      caption,
+      caption: "", // কোনো ক্যাপশন থাকবে না
       image_url: imageUrl,
-      sort_order: input.sort_order ?? 0,
+      sort_order: input.sort_order ?? (input.slot_type === "hero_16_9" ? 0 : 1),
     })
     .select()
     .single();
@@ -67,25 +67,24 @@ export async function createClassroomPhoto(
   return { ok: true, photo: data as ClassroomPhoto };
 }
 
-// ৩. ছবির ক্যাপশন বা লিংক আপডেট করা
+// ৩. ছবির লিংক বা ক্রম আপডেট করা
 export async function updateClassroomPhoto(
   id: string,
   input: ClassroomPhotoInput
 ): Promise<ClassroomActionResult> {
   const supabase = await createClient();
-
-  const caption = input.caption?.trim();
   const imageUrl = input.image_url?.trim();
 
-  if (!imageUrl) return { ok: false, message: "ছবির লিংক দিন।" };
-  if (!caption) return { ok: false, message: "ছবির ক্যাপশন দিন।" };
+  if (!imageUrl) {
+    return { ok: false, message: "ছবির লিংক দিন।" };
+  }
 
   const { data, error } = await supabase
     .from(TABLE)
     .update({
-      caption,
+      caption: "",
       image_url: imageUrl,
-      sort_order: input.sort_order ?? 0,
+      sort_order: input.sort_order ?? (input.slot_type === "hero_16_9" ? 0 : 1),
     })
     .eq("id", id)
     .select()
@@ -107,7 +106,7 @@ export async function deleteClassroomPhoto(id: string): Promise<ClassroomActionR
   const { error } = await supabase.from(TABLE).delete().eq("id", id);
 
   if (error) {
-    return { ok: false, message: "মুছে ফেলা যায়নি: " + error.message };
+    return { ok: false, message: "মুছে ফেলা যায়নি: " + error.message };
   }
 
   revalidatePath("/gallery/classroom");
