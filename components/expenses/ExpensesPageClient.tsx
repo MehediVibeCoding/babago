@@ -7,6 +7,7 @@ import type {
   UnifiedTransaction,
   TransactionType,
   PaymentMethodType,
+  ActionResult,
 } from "@/app/actions/finance";
 import {
   getMonthlyFinancialStatement,
@@ -281,12 +282,12 @@ export default function FinancePageClient({
     }
   }
 
-  // ═══════════════ ডিলিট হ্যান্ডলার ═══════════════
+  // ═══════════════ ডিলিট হ্যান্ডলার (টাইপ-সেফ ফিক্স) ═══════════════
   async function handleDeleteConfirm() {
     if (!deleteTarget) return;
     setDeleting(true);
 
-    let res = { ok: false, message: "" };
+    let res: ActionResult = { ok: false };
     if (deleteTarget.source === "salary_or_income") {
       res = await deleteIncomeRecord(deleteTarget.id);
     } else if (deleteTarget.source === "expense") {
@@ -1029,7 +1030,7 @@ export default function FinancePageClient({
         </form>
       </Modal>
 
-      {/* ═══════════════ মোডাল ৪: ডিলিট কনফার্মেশন ═══════════════ */}
+      {/* ═══════════════ মোডাল ৪: ডিলিট কনফার্মেশন (টাইপ-সেফ ফিক্স) ═══════════════ */}
       <Modal
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
