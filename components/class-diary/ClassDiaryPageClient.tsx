@@ -28,7 +28,6 @@ function getTodayDateString() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// মাসের ড্রপডাউন অপশন
 function getMonthOptions() {
   const options: { value: string; label: string }[] = [];
   const now = new Date();
@@ -50,13 +49,20 @@ const EMPTY_FORM: ClassDiaryInput = {
   slide_url: "",
 };
 
-// 🎯 উদাহরণ টেমপ্লেট — "উদাহরণ লোড করুন" বাটনে চাপলে এটি ফর্মে অটো-ফিল হবে
+// 🎯 মেইন ওয়েবসাইটের সিঙ্ক অনুযায়ী স্ট্যান্ডার্ড লেকচার নোট টেমপ্লেট (কোনো বাড়ির কাজ শব্দ ছাড়া)
 const EXAMPLE_DIARY_TEMPLATE: ClassDiaryInput = {
   entry_date: getTodayDateString(),
   batch_id: "",
   batch_name_snapshot: "HSC English (Batch 28)",
-  topic: "Flow Chart লেখার নিয়ম ও ৫টি বোর্ড প্রশ্ন অনুশীলন",
-  note: "১. ক্লাসে Flow Chart-এর ৫টি শর্টকাট রুল ও সংযোজক শব্দের ব্যবহার বোঝানো হয়েছে।\n২. লেকচার শিটের ৩ ও ৪ নং প্রশ্ন বাসায় হোমওয়ার্ক করতে হবে।\n৩. আগামী ক্লাসে ৫ নম্বরের কুইজ নেওয়া হবে।",
+  topic: "Flow Chart লেখার নিয়ম ও ৫টি গুরুত্বপূর্ণ বোর্ড প্রশ্ন সমাধান",
+  note: `আজকের ক্লাসে HSC English 1st Paper-এর Flow Chart লেখার শর্টকাট টেকনিক ও সংযোজক শব্দের (Linking Words) সঠিক ব্যবহার বিস্তারিতভাবে আলোচনা করা হয়েছে।
+
+প্রধান পয়েন্টসমূহ:
+১. বক্সের ভেতরে শুধুমাত্র সংক্ষিপ্ত ফ্রেজ (Short Notes) ব্যবহার করতে হবে, পূর্ণ বাক্য নয়।
+২. প্রথম বক্সের গ্রামাটিক্যাল ফর্ম (যেমন: Gerund বা V+ing) পরবর্তী প্রতিটি বক্সে বজায় রাখা আবশ্যক।
+৩. প্রতিটি বক্সের মাঝে অনুভূমিক তীরচিহ্ন (→) স্পষ্ট রাখতে হবে।
+
+ক্লাস লেকচার শিট থেকে ৩ ও ৪ নং অনুশীলনীর সমাধানটি ভালোভাবে রিভিশন করার নির্দেশ দেওয়া হলো।`,
   slide_url: "https://drive.google.com/file/d/your-google-drive-link-here/view",
 };
 
@@ -84,6 +90,9 @@ export default function ClassDiaryPageClient({
   const [customTagMode, setCustomTagMode] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // 👁️ মেইন ওয়েবসাইট ভিউ প্রিভিউ মোডাল
+  const [previewEntry, setPreviewEntry] = useState<ClassDiaryEntry | null>(null);
+
   // ডিলিট স্টেট
   const [deleteTarget, setDeleteTarget] = useState<ClassDiaryEntry | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -94,7 +103,7 @@ export default function ClassDiaryPageClient({
     }
   }, [searchParams]);
 
-  // অনন্য ব্যাচ/ট্যাগ তালিকা (ফিল্টারের জন্য)
+  // অনন্য ব্যাচ/ট্যাগ তালিকা
   const uniqueTags = useMemo(() => {
     const tags = new Set<string>();
     entries.forEach((e) => {
@@ -104,7 +113,7 @@ export default function ClassDiaryPageClient({
     return Array.from(tags);
   }, [entries, batches]);
 
-  // ফিল্টার করা ডায়েরি তালিকা
+  // ফিল্টার করা ডায়েরি তালিকা (সর্বশেষ প্রকাশিত ক্রমানুসারে)
   const filteredEntries = useMemo(() => {
     const q = search.trim().toLowerCase();
     return entries.filter((e) => {
@@ -157,14 +166,13 @@ export default function ClassDiaryPageClient({
     setModalOpen(true);
   }
 
-  // 📝 স্মার্ট উদাহরণ টেমপ্লেট লোড করা
   function handleLoadExample() {
     setFormData({
       ...EXAMPLE_DIARY_TEMPLATE,
       entry_date: formData.entry_date || getTodayDateString(),
     });
     setCustomTagMode(false);
-    showToast("উদাহরণ টেমপ্লেট ফর্মে লোড হয়েছে ✓", "info");
+    showToast("উদাহরণ লেকচার নোট টেমপ্লেট লোড হয়েছে ✓", "info");
   }
 
   function handleBatchSelectChange(val: string) {
@@ -199,20 +207,20 @@ export default function ClassDiaryPageClient({
       setSaving(false);
       if (res.ok && res.entry) {
         setEntries((prev) => prev.map((e) => (e.id === editingEntry.id ? res.entry! : e)));
-        showToast("ক্লাস ডায়েরি সফলভাবে আপডেট হয়েছে।", "success");
+        showToast("ক্লাস ডায়েরি সফলভাবে আপডেট হয়েছে।", "success");
         setModalOpen(false);
       } else {
-        showToast(res.message || "আপডেট ব্যর্থ হয়েছে।", "error");
+        showToast(res.message || "আপডেট ব্যর্থ হয়েছে।", "error");
       }
     } else {
       const res = await createClassDiaryEntry(formData);
       setSaving(false);
       if (res.ok && res.entry) {
         setEntries((prev) => [res.entry!, ...prev]);
-        showToast("নতুন ক্লাস ডায়েরি সফলভাবে প্রকাশ হয়েছে!", "success");
+        showToast("নতুন ক্লাস লেকচার নোট প্রকাশিত হয়েছে!", "success");
         setModalOpen(false);
       } else {
-        showToast(res.message || "পোস্ট করতে সমস্যা হয়েছে।", "error");
+        showToast(res.message || "পোস্ট করতে সমস্যা হয়েছে।", "error");
       }
     }
   }
@@ -224,18 +232,18 @@ export default function ClassDiaryPageClient({
     setDeleting(false);
     if (res.ok) {
       setEntries((prev) => prev.filter((e) => e.id !== deleteTarget.id));
-      showToast("ক্লাস ডায়েরি এন্ট্রি মুছে ফেলা হয়েছে।", "success");
+      showToast("ক্লাস ডায়েরি মুছে ফেলা হয়েছে।", "success");
       setDeleteTarget(null);
     } else {
-      showToast(res.message || "মুছে ফেলা যায়নি।", "error");
+      showToast(res.message || "মুছে ফেলা যায়নি।", "error");
     }
   }
 
   return (
     <div>
       <PageHeader
-        title="আজকের ক্লাস ডায়েরি"
-        subtitle="দৈনিক ক্লাসের টপিক, পড়ার সারসংক্ষেপ, বাড়ির কাজ ও স্লাইড/পিডিএফ শেয়ার করুন"
+        title="আজকের ক্লাস ডায়েরি ও লেকচার নোট"
+        subtitle="দৈনিক ক্লাসের মূল টপিক, সারসংক্ষেপ আলোচনা ও গুগল ড্রাইভ শিট/পিডিএফ প্রকাশ করুন"
         action={
           <PrimaryButton onClick={openAddModal}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -250,21 +258,21 @@ export default function ClassDiaryPageClient({
       {/* ওভারভিউ কার্ডস */}
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border border-sky-200/70 bg-gradient-to-br from-[#EBF5FF] via-white to-white p-4 shadow-sh1">
-          <p className="font-body text-[11px] font-extrabold uppercase tracking-wider text-sky-700">মোট ক্লাস ডায়েরি</p>
+          <p className="font-body text-[11px] font-extrabold uppercase tracking-wider text-sky-700">মোট ক্লাস নোট</p>
           <p className="mt-1 font-body text-[20px] font-black text-sky-950 sm:text-[22px]">{toBengaliDigits(stats.total)}টি</p>
-          <span className="font-body text-[10.5px] font-semibold text-muted">ওয়েবসাইটে সংরক্ষিত লেকচার</span>
+          <span className="font-body text-[10.5px] font-semibold text-muted">সংরক্ষিত লেকচার ডায়েরি</span>
         </div>
 
         <div className="rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-[#ECFDF5] via-white to-white p-4 shadow-sh1">
           <p className="font-body text-[11px] font-extrabold uppercase tracking-wider text-success">চলতি মাসের ক্লাস নোট</p>
           <p className="mt-1 font-body text-[20px] font-black text-emerald-900 sm:text-[22px]">{toBengaliDigits(stats.thisMonth)}টি</p>
-          <span className="font-body text-[10.5px] font-semibold text-muted">এই মাসে আপলোড করা হয়েছে</span>
+          <span className="font-body text-[10.5px] font-semibold text-muted">এই মাসে আপলোড করা হয়েছে</span>
         </div>
 
         <div className="rounded-2xl border border-indigo-200/70 bg-gradient-to-br from-[#EEF2FF] via-white to-white p-4 shadow-sh1">
-          <p className="font-body text-[11px] font-extrabold uppercase tracking-wider text-indigo-600">সংযুক্ত স্লাইড ও পিডিএফ</p>
+          <p className="font-body text-[11px] font-extrabold uppercase tracking-wider text-indigo-600">সংযুক্ত স্লাইড ও ড্রাইভ লিংক</p>
           <p className="mt-1 font-body text-[20px] font-black text-indigo-950 sm:text-[22px]">{toBengaliDigits(stats.withSlides)}টি</p>
-          <span className="font-body text-[10.5px] font-semibold text-muted">ডাউনলোডযোগ্য শিট যুক্ত</span>
+          <span className="font-body text-[10.5px] font-semibold text-muted">অনলাইন শিট সংযুক্ত</span>
         </div>
       </div>
 
@@ -286,7 +294,7 @@ export default function ClassDiaryPageClient({
             </svg>
             <input
               type="text"
-              placeholder="টপিক, বাড়ির কাজ বা ব্যাচ দিয়ে খুঁজুন..."
+              placeholder="টপিক, লেকচার নোট বা ব্যাচ দিয়ে খুঁজুন..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-[40px] w-full rounded-full border border-border-base/80 bg-surface-muted/60 pl-10 pr-9 font-body text-[13px] text-ink-800 placeholder:text-muted/70 outline-none transition-all focus:border-sky-600 focus:bg-white focus:ring-2 focus:ring-sky-600/20"
@@ -332,112 +340,116 @@ export default function ClassDiaryPageClient({
         </div>
       </div>
 
-      {/* 🎯 ক্লাস ডায়েরি কার্ড গ্রিড */}
+      {/* 🎯 ক্লাস ডায়েরি কার্ড গ্রিড */}
       {filteredEntries.length === 0 ? (
         <div className="rounded-[24px] border border-border-base/80 bg-white p-8 shadow-sh1">
           <EmptyState
-            title="কোনো ক্লাস ডায়েরি পাওয়া যায়নি"
-            hint="নতুন ক্লাসের নোট প্রকাশ করুন অথবা সার্চ/ফিল্টার পরিবর্তন করুন।"
+            title="কোনো ক্লাস ডায়েরি পাওয়া যায়নি"
+            hint="নতুন ক্লাসের লেকচার নোট প্রকাশ করুন অথবা সার্চ/ফিল্টার পরিবর্তন করুন।"
           />
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredEntries.map((entry) => {
-            return (
-              <div
-                key={entry.id}
-                className="hover-lift flex flex-col justify-between overflow-hidden rounded-[24px] border border-border-base/90 bg-white p-5 shadow-sh1 transition-all duration-brand hover:shadow-sh2"
-              >
-                <div>
-                  {/* কার্ডের শীর্ষ: তারিখ ও ব্যাচ ট্যাগ */}
-                  <div className="mb-3 flex items-center justify-between gap-2 border-b border-border-base/50 pb-2.5">
-                    <span className="font-body text-[11.5px] font-bold text-sky-800">
-                      📅 {formatBengaliDate(entry.entry_date)}
-                    </span>
-                    <span className="rounded-lg bg-sky-100/80 px-2 py-0.5 font-body text-[10.5px] font-bold text-sky-900">
-                      {entry.batch_name_snapshot || "সাধারণ ক্লাস"}
-                    </span>
-                  </div>
-
-                  {/* ক্লাসের টপিক */}
-                  <h3 className="font-body text-[15.5px] font-black tracking-tight text-sky-950">
-                    {entry.topic}
-                  </h3>
-
-                  {/* সারসংক্ষেপ ও হোমওয়ার্ক */}
-                  {entry.note ? (
-                    <p className="mt-2.5 whitespace-pre-line font-body text-[12.5px] leading-relaxed text-ink-800/85">
-                      {entry.note}
-                    </p>
-                  ) : (
-                    <p className="mt-2.5 font-body text-[11.5px] text-muted italic">কোনো অতিরিক্ত নোট নেই।</p>
-                  )}
+          {filteredEntries.map((entry) => (
+            <div
+              key={entry.id}
+              className="hover-lift flex flex-col justify-between overflow-hidden rounded-[24px] border border-border-base/90 bg-white p-5 shadow-sh1 transition-all duration-brand hover:shadow-sh2"
+            >
+              <div>
+                {/* কার্ডের শীর্ষ: তারিখ ও ব্যাচ ট্যাগ */}
+                <div className="mb-3 flex items-center justify-between gap-2 border-b border-border-base/50 pb-2.5">
+                  <span className="font-body text-[11.5px] font-bold text-sky-800">
+                    📅 {formatBengaliDate(entry.entry_date)}
+                  </span>
+                  <span className="rounded-lg bg-sky-100/80 px-2 py-0.5 font-body text-[10.5px] font-bold text-sky-900">
+                    {entry.batch_name_snapshot || "সাধারণ ক্লাস"}
+                  </span>
                 </div>
 
-                {/* কার্ড ফুটার: স্লাইড লিংক ও অ্যাকশন বাটন */}
-                <div className="mt-4 border-t border-border-base/60 pt-3">
-                  <div className="flex items-center justify-between gap-2">
-                    {/* স্লাইড / ড্রাইভ পিডিএফ লিংক বাটন */}
-                    {entry.slide_url ? (
+                {/* ক্লাসের মূল টপিক */}
+                <h3 className="font-body text-[15.5px] font-black tracking-tight text-sky-950 line-clamp-2">
+                  {entry.topic}
+                </h3>
+
+                {/* লেকচার নোট ও সারসংক্ষেপ */}
+                {entry.note ? (
+                  <p className="mt-2.5 line-clamp-3 whitespace-pre-line font-body text-[12.5px] leading-relaxed text-ink-800/85">
+                    {entry.note}
+                  </p>
+                ) : (
+                  <p className="mt-2.5 font-body text-[11.5px] text-muted italic">কোনো অতিরিক্ত নোট নেই।</p>
+                )}
+              </div>
+
+              {/* কার্ড ফুটার: প্রিভিউ বাটন, স্লাইড লিংক ও অ্যাকশন */}
+              <div className="mt-4 border-t border-border-base/60 pt-3">
+                <div className="flex items-center justify-between gap-2">
+                  {/* লাইভ প্রিভিউ বাটন */}
+                  <button
+                    type="button"
+                    onClick={() => setPreviewEntry(entry)}
+                    className="inline-flex items-center gap-1 font-body text-[11.5px] font-bold text-sky-600 hover:text-sky-700 hover:underline"
+                  >
+                    <span>👁️ সম্পূর্ণ নোট প্রিভিউ</span>
+                  </button>
+
+                  <div className="flex items-center gap-1.5">
+                    {entry.slide_url && (
                       <a
                         href={entry.slide_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-sky-50 px-3 py-1.5 font-body text-[11.5px] font-bold text-sky-700 transition-colors hover:bg-sky-600 hover:text-white"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-600 hover:text-white transition-colors"
+                        title="স্লাইড লিংক খুলুন"
                       >
-                        <span>📄 লেকচার শিট / স্লাইড</span>
-                        <span className="text-[10px]">↗</span>
+                        📄
                       </a>
-                    ) : (
-                      <span className="font-body text-[11px] font-medium text-muted">স্লাইড লিংক নেই</span>
                     )}
 
-                    {/* এডিট ও ডিলিট বাটন */}
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => openEditModal(entry)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-base/80 bg-white text-ink-800 transition-colors hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
-                        title="সম্পাদনা"
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(entry)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50/60 text-danger transition-colors hover:bg-rose-100"
-                        title="মুছে ফেলুন"
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                        </svg>
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(entry)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-base/80 bg-white text-ink-800 transition-colors hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
+                      title="সম্পাদনা"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                      </svg>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(entry)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50/60 text-danger transition-colors hover:bg-rose-100"
+                      title="মুছে ফেলুন"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
 
-      {/* নতুন প্রকাশ / এডিট মোডাল */}
+      {/* নতুন ক্লাস নোট প্রকাশ / এডিট মোডাল */}
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingEntry ? "ক্লাস ডায়েরি সম্পাদনা" : "আজকের ক্লাস ডায়েরি প্রকাশ করুন"}
-        description="ক্লাসে যা পড়ানো হয়েছে তার সারসংক্ষেপ, বাড়ির কাজ ও গুগল ড্রাইভ পিডিএফ লিংক দিন।"
+        title={editingEntry ? "ক্লাস ডায়েরি সম্পাদনা" : "আজকের ক্লাস ডায়েরি প্রকাশ করুন"}
+        description="ক্লাসের মূল বিষয়বস্তু, আলোচনার সম্পূর্ণ নোট ও গুগল ড্রাইভ শিটের লিংক প্রদান করুন।"
         maxWidth="max-w-xl"
       >
-        {/* 📝 mehediadmin স্টাইলে স্মার্ট উদাহরণ লোড বাটন */}
+        {/* উদাহরণ টেমপ্লেট লোড বাটন */}
         <div className="mb-4 flex items-center justify-between rounded-xl border border-sky-200 bg-sky-50/80 p-3">
           <div className="flex items-center gap-2">
             <span className="text-base">⚡</span>
             <div>
               <p className="font-body text-[12px] font-bold text-sky-950">দ্রুত লেখার টেমপ্লেট</p>
-              <p className="font-body text-[10.5px] text-sky-800">স্ট্যান্ডার্ড লেকচার ও হোমওয়ার্ক ফরম্যাট এক ক্লিকে লোড করুন</p>
+              <p className="font-body text-[10.5px] text-sky-800">স্ট্যান্ডার্ড লেকচার নোট ফরম্যাট এক ক্লিকে লোড করুন</p>
             </div>
           </div>
           <button
@@ -451,7 +463,6 @@ export default function ClassDiaryPageClient({
 
         <form onSubmit={handleSave} className="space-y-3.5">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {/* তারিখ */}
             <Field label="ক্লাসের তারিখ *" required>
               <TextInput
                 type="date"
@@ -461,7 +472,6 @@ export default function ClassDiaryPageClient({
               />
             </Field>
 
-            {/* ব্যাচ / শ্রেণি বা কাস্টম ট্যাগ */}
             <Field label="ব্যাচ / শ্রেণি নির্বাচন *" required>
               {!customTagMode ? (
                 <Select
@@ -496,28 +506,27 @@ export default function ClassDiaryPageClient({
             </Field>
           </div>
 
-          {/* ক্লাসের মূল টপিক */}
           <Field label="ক্লাসের মূল টপিক বা শিরোনাম *" required>
             <TextInput
               required
-              placeholder="যেমন: Flow Chart লেখার নিয়ম ও ৫টি বোর্ড প্রশ্ন অনুশীলন"
+              placeholder="যেমন: Flow Chart লেখার নিয়ম ও ৫টি গুরুত্বপূর্ণ বোর্ড প্রশ্ন সমাধান"
               value={formData.topic}
               onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
             />
           </Field>
 
-          {/* সারসংক্ষেপ ও হোমওয়ার্ক */}
-          <Field label="ক্লাসের সারসংক্ষেপ ও বাড়ির কাজ (নোট)">
+          {/* ফুল লেকচার নোট ও মূল আলোচনা (Full Content) */}
+          <Field label="লেকচার নোট ও মূল আলোচনা (Full Content) *" required>
             <TextArea
-              rows={4}
-              placeholder={"১. ক্লাসে পড়ানো গুরুত্বপূর্ণ পয়েন্টসমূহ...\n২. বাড়ির কাজের নির্দেশ...\n৩. কুইজ বা মডেল টেস্টের নোটিশ..."}
+              rows={6}
+              required
+              placeholder={"১. ক্লাসে পড়ানো মূল থিওরি ও শর্টকাট টেকনিকসমূহ...\n২. গুরুত্বপূর্ণ নিয়মাবলী ও পয়েন্ট...\n৩. বিশেষ নির্দেশনা..."}
               value={formData.note}
               onChange={(e) => setFormData({ ...formData, note: e.target.value })}
             />
           </Field>
 
-          {/* গুগল ড্রাইভ / স্লাইড / পিডিএফ লিংক */}
-          <Field label="লেকচার শিট / প্রেজেন্টেশন / গুগল ড্রাইভ পিডিএফ লিংক (ঐচ্ছিক)">
+          <Field label="লেকচার শিট / গুগল ড্রাইভ পিডিএফ লিংক (ঐচ্ছিক)">
             <TextInput
               type="url"
               placeholder="https://drive.google.com/file/d/... বা Canva/PDF লিংক"
@@ -525,7 +534,7 @@ export default function ClassDiaryPageClient({
               onChange={(e) => setFormData({ ...formData, slide_url: e.target.value })}
             />
             <span className="mt-1 block font-body text-[10.5px] text-muted">
-              শিক্ষার্থীরা ওয়েবসাইটে এই লিংকে ক্লিক করে সরাসরি সম্পূর্ণ শিট বা পিডিএফ দেখতে পাবে।
+              শিক্ষার্থীরা ওয়েবসাইটে এই লিংকে ক্লিক করে সরাসরি সম্পূর্ণ শিট বা স্লাইড অনলাইনে দেখতে পাবে।
             </span>
           </Field>
 
@@ -540,11 +549,58 @@ export default function ClassDiaryPageClient({
         </form>
       </Modal>
 
+      {/* 👁️ মেইন ওয়েবসাইট ভিউ প্রিভিউ মোডাল (মেইন সাইটের /class-diary/[id] এর মতো হুবহু প্রিভিউ) */}
+      <Modal
+        open={!!previewEntry}
+        onClose={() => setPreviewEntry(null)}
+        title={previewEntry?.topic || "ক্লাস নোট প্রিভিউ"}
+        description={`${formatBengaliDate(previewEntry?.entry_date || "")} · ${previewEntry?.batch_name_snapshot || ""}`}
+        maxWidth="max-w-2xl"
+      >
+        {previewEntry && (
+          <div className="space-y-4 max-h-[500px] overflow-y-auto sleek-scrollbar pr-2">
+            <div className="rounded-2xl border border-sky-100 bg-sky-50/50 p-4">
+              <div className="flex items-center justify-between gap-2 border-b border-sky-100/80 pb-2.5 mb-2.5">
+                <span className="font-body text-xs font-bold text-sky-800">📅 {formatBengaliDate(previewEntry.entry_date)}</span>
+                <span className="rounded-md bg-white px-2.5 py-0.5 font-body text-xs font-bold text-sky-900 shadow-2xs">
+                  {previewEntry.batch_name_snapshot}
+                </span>
+              </div>
+              <h2 className="font-body text-lg font-black text-sky-950">{previewEntry.topic}</h2>
+            </div>
+
+            <div className="space-y-3 font-body text-[14px] leading-relaxed text-ink-800 whitespace-pre-line border-t border-border-base/50 pt-3">
+              {previewEntry.note}
+            </div>
+
+            {previewEntry.slide_url && (
+              <div className="rounded-xl bg-sky-50 p-3.5 border border-sky-200 flex items-center justify-between gap-3">
+                <span className="font-body text-xs font-bold text-sky-900">📄 লেকচার শিট ও স্লাইড সংযুক্ত আছে</span>
+                <a
+                  href={previewEntry.slide_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg bg-sky-600 px-3 py-1 text-xs font-bold text-white hover:bg-sky-700 transition-colors"
+                >
+                  লিংক খুলুন ↗
+                </a>
+              </div>
+            )}
+
+            <div className="flex justify-end border-t border-border-base/60 pt-3">
+              <SecondaryButton type="button" onClick={() => setPreviewEntry(null)}>
+                বন্ধ করুন
+              </SecondaryButton>
+            </div>
+          </div>
+        )}
+      </Modal>
+
       {/* ডিলিট কনফার্মেশন মোডাল */}
       <Modal
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        title="ক্লাস ডায়েরি মুছে ফেলবেন?"
+        title="ক্লাস ডায়েরি মুছে ফেলবেন?"
         maxWidth="max-w-sm"
       >
         <div className="space-y-4 text-center">
