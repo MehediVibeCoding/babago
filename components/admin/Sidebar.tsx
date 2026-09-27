@@ -89,7 +89,7 @@ const NAV_SECTIONS: NavSection[] = [
       },
       {
         href: "/expenses",
-        label: "খরচ ট্র্যাকার",
+        label: "আয়-ব্যয় ও ফাইন্যান্স",
         icon: (
           <>
             <line x1="12" y1="1" x2="12" y2="23" />
@@ -171,12 +171,12 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
-// মোবাইল বটম বারের ৪টি মূল শর্টকাট
+// মোবাইল বটম বারের মূল শর্টকাট
 const BOTTOM_TAB_ITEMS = [
   NAV_SECTIONS[0].items[0], // ড্যাশবোর্ড
   NAV_SECTIONS[0].items[1], // শিক্ষার্থী
   NAV_SECTIONS[0].items[2], // পেমেন্ট
-  NAV_SECTIONS[0].items[3], // ব্যাচ
+  NAV_SECTIONS[0].items[6], // আয়-ব্যয় ও ফাইন্যান্স
 ];
 
 function NavIcon({ children, className = "h-[18px] w-[18px]" }: { children: React.ReactNode; className?: string }) {
