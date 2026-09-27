@@ -171,7 +171,7 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
-// মোবাইল বটম বারের মূল শর্টকাট
+// মোবাইল বটম বারের ৪টি মূল শর্টকাট
 const BOTTOM_TAB_ITEMS = [
   NAV_SECTIONS[0].items[0], // ড্যাশবোর্ড
   NAV_SECTIONS[0].items[1], // শিক্ষার্থী
@@ -233,7 +233,7 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* ══ ডেস্কটপ এক্সপ্যান্ডেবল গ্লাস সাইডবার ══ */}
+      {/* ══ ডেস্কটপ এক্সপ্যান্ডেবল গ্লাস সাইডবার (০ms ইনস্ট্যান্ট প্রি-ফেচিং সহ) ══ */}
       <div className="relative hidden md:block md:w-[76px] md:shrink-0">
         <aside
           onMouseEnter={() => setIsHovered(true)}
@@ -266,6 +266,7 @@ export default function Sidebar() {
                       <Link
                         key={item.href}
                         href={item.href}
+                        prefetch={true}
                         title={!isHovered ? item.label : undefined}
                         className={cn(
                           "group relative flex h-[42px] items-center rounded-[14px] transition-all duration-brand",
@@ -275,7 +276,7 @@ export default function Sidebar() {
                             : "text-ink-800/70 hover:bg-sky-100/60 hover:text-sky-700"
                         )}
                       >
-                        <NavIcon className={cn("h-5 w-5", active ? "text-white" : "text-ink-800/60 group-hover:text-sky-700")}>
+                        <NavIcon className={cn("h-5 w-5", active ? "text-white" : "text-ink-800/65 group-hover:text-sky-700")}>
                           {item.icon}
                         </NavIcon>
                         <span
@@ -318,7 +319,7 @@ export default function Sidebar() {
         </aside>
       </div>
 
-      {/* ══ মোবাইল ফ্রস্টেড বটম বার ══ */}
+      {/* ══ মোবাইল ফ্রস্টেড বটম বার (ইনস্ট্যান্ট প্রাক-লোড সহ) ══ */}
       <div
         className="fixed bottom-3 left-1/2 z-[500] flex w-[calc(100%-20px)] max-w-[420px] -translate-x-1/2 items-center justify-between rounded-full border border-white/80 bg-white/90 p-1.5 shadow-[0_8px_32px_rgba(2,132,199,0.18)] backdrop-blur-2xl md:hidden"
         style={{ bottom: "calc(10px + env(safe-area-inset-bottom, 0px))" }}
@@ -329,6 +330,7 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={true}
               className={cn(
                 "flex flex-1 flex-col items-center gap-0.5 rounded-full py-2 transition-all duration-brand",
                 active ? "bg-sky-600 text-white shadow-xs" : "text-ink-800/65 hover:text-sky-700"
@@ -395,6 +397,7 @@ export default function Sidebar() {
                     <Link
                       key={item.href}
                       href={item.href}
+                      prefetch={true}
                       onClick={() => setMobileOpen(false)}
                       className={cn(
                         "flex items-center gap-3 rounded-xl px-3.5 py-2.5 font-body text-[13px] font-bold transition-all duration-brand",
