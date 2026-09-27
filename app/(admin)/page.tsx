@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/admin/ui";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  // Supabase থেকে সরাসরি রিয়েলটাইম লাইভ ডাটা ফেচ করা (মক ডাটা সম্পূর্ণ রিমুভ)
+  // Supabase থেকে সরাসরি রিয়েলটাইম লাইভ ডাটা ফেচ করা (মক ডাটা সম্পূর্ণ মুক্ত)
   const data = await getLiveDashboardData();
 
   return (
