@@ -31,13 +31,13 @@ export type LiveDashboardData = {
   todayLabel: string;
 };
 
-// ⚡ Supabase থেকে রিয়েলটাইম লাইভ ড্যাশবোর্ড ডাটা ফেচিং ইঞ্জিন
+// ⚡ Supabase থেকে রিয়েলটাইম লাইভ ডাটা ফেচিং ইঞ্জিন (কোনো মক ডাটা ছাড়া)
 export async function getLiveDashboardData(): Promise<LiveDashboardData> {
   const supabase = await createClient();
   const today = new Date();
   const monthKey = currentMonthKey(today);
 
-  // প্যারালাল লাইভ ডাটা ফেচিং (শিক্ষার্থী, ব্যাচ, পেমেন্ট ও ব্লগ)
+  // প্যারালাল ও অপ্টিমাইজড লাইভ ডাটা ফেচিং
   const [
     { data: studentsData, error: sErr },
     { data: batchesData, error: bErr },
@@ -80,10 +80,10 @@ export async function getLiveDashboardData(): Promise<LiveDashboardData> {
   // আজকের বারে কোন কোন ব্যাচের ক্লাস আছে
   const todaysBatches: Batch[] = activeBatches.filter((b) => isBatchToday(b.schedule, today));
 
-  // সর্বশেষ ৬টি পেমেন্ট লেনদেন
+  // সর্বশেষ ৬টি আসল পেমেন্ট লেনদেন
   const recentPayments: Payment[] = payments.slice(0, 6);
 
-  // শেষ ৬ মাসের লাইভ কালেকশন ট্রেন্ড বার চার্ট ডাটা
+  // শেষ ৬ মাসের লাইভ কালেকশন চার্ট ডাটা
   const BN_MONTHS_SHORT = [
     "জানু",
     "ফেব্রু",
