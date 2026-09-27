@@ -28,8 +28,8 @@ const EMPTY_FORM: ClassroomPhotoInput = {
 
 // 🎯 উদাহরণ টেমপ্লেট
 const EXAMPLE_PHOTO_TEMPLATE: ClassroomPhotoInput = {
-  caption: "হোয়াইটবোর্ডে লজিক গেইট ও ইংলিশ ড্রাফটিং বোঝাচ্ছেন স্যার",
-  image_url: "https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&w=800&q=80",
+  caption: "হোয়াইটবোর্ডে লজিক গেইটের বাস্তব ডায়াগ্রাম ও ক্লাস মুহূর্ত",
+  image_url: "https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&w=1200&q=80",
   sort_order: 1,
 };
 
@@ -80,7 +80,7 @@ export default function ClassroomGalleryClient({
 
   function handleLoadExample() {
     setFormData(EXAMPLE_PHOTO_TEMPLATE);
-    showToast("উদাহরণ ছবির লিংক ও ক্যাপশন লোড হয়েছে ✓", "info");
+    showToast("উদাহরণ ছবির লিংক ও রেফারেন্স লোড হয়েছে ✓", "info");
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -90,7 +90,7 @@ export default function ClassroomGalleryClient({
       return;
     }
     if (!formData.caption.trim()) {
-      showToast("ছবির ক্যাপশন দিন।", "error");
+      showToast("ছবির একটি চেনার সুবিধার শিরোনাম/রেফারেন্স দিন।", "error");
       return;
     }
 
@@ -100,20 +100,20 @@ export default function ClassroomGalleryClient({
       setSaving(false);
       if (res.ok && res.photo) {
         setPhotos((prev) => prev.map((p) => (p.id === editingPhoto.id ? res.photo! : p)));
-        showToast("ছবির তথ্য সফলভাবে আপডেট হয়েছে।", "success");
+        showToast("ছবির তথ্য সফলভাবে আপডেট হয়েছে।", "success");
         setModalOpen(false);
       } else {
-        showToast(res.message || "আপডেট ব্যর্থ হয়েছে।", "error");
+        showToast(res.message || "আপডেট ব্যর্থ হয়েছে।", "error");
       }
     } else {
       const res = await createClassroomPhoto(formData);
       setSaving(false);
       if (res.ok && res.photo) {
         setPhotos((prev) => [res.photo!, ...prev]);
-        showToast("নতুন ক্লাসরুম ছবি যুক্ত হয়েছে!", "success");
+        showToast("নতুন ক্লাসরুম ছবি যুক্ত হয়েছে!", "success");
         setModalOpen(false);
       } else {
-        showToast(res.message || "ছবি যুক্ত করা যায়নি।", "error");
+        showToast(res.message || "ছবি যুক্ত করা যায়নি।", "error");
       }
     }
   }
@@ -125,10 +125,10 @@ export default function ClassroomGalleryClient({
     setDeleting(false);
     if (res.ok) {
       setPhotos((prev) => prev.filter((p) => p.id !== deleteTarget.id));
-      showToast("ছবি মুছে ফেলা হয়েছে।", "success");
+      showToast("ছবি মুছে ফেলা হয়েছে।", "success");
       setDeleteTarget(null);
     } else {
-      showToast(res.message || "মুছে ফেলা যায়নি।", "error");
+      showToast(res.message || "মুছে ফেলা যায়নি।", "error");
     }
   }
 
@@ -136,7 +136,7 @@ export default function ClassroomGalleryClient({
     <div>
       <PageHeader
         title="ক্লাসরুম ও একাডেমি লাইফ গ্যালারি"
-        subtitle="মেইন ওয়েবসাইটের ক্লাসরুম মোমেন্টস সেকশনে প্রদর্শিত ছবি ও ক্যাপশন পরিচালনা করুন"
+        subtitle="মেইন ওয়েবসাইটের ক্লাসরুম মোমেন্টস সেকশনে প্রদর্শিত ছবি পরিচালনা করুন"
         action={
           <PrimaryButton onClick={openAddModal}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -148,7 +148,20 @@ export default function ClassroomGalleryClient({
         }
       />
 
-      {/* ওভারভিউ কার্ড ও সার্চ */}
+      {/* 💡 ১৬:৯ ও ২-স্প্লিট লেআউট সাইজিং গাইডলাইন ব্যানার */}
+      <div className="mb-5 flex items-start gap-3 rounded-[22px] border border-sky-200 bg-sky-50/80 p-4 shadow-sh1">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sky-600 text-white text-base">
+          🖼️
+        </span>
+        <div className="font-body text-xs sm:text-[13px] text-sky-950 leading-relaxed">
+          <p className="font-bold text-sky-900">মেইন ওয়েবসাইটের গ্যালারি সাইজিং নিয়ম:</p>
+          <p className="mt-0.5 text-sky-800/90">
+            মেইন ওয়েবসাইটে প্রতি ৩টি ছবি একটি গ্রুপ হিসেবে দেখায়—গ্রুপের ১ম ছবিটি ওপরে <b>১৬:৯ (1200×675 px)</b> সাইজে এবং পরের ২টি ছবি নিচে সমান ভাগে স্প্লিট আকারে থাকে। ওয়েবসাইটে কোনো টেক্সট ক্যাপশন দেখাবে না, ক্যাপশনটি শুধু আপনার চেনার সুবিধার জন্য।
+          </p>
+        </div>
+      </div>
+
+      {/* সার্চ ও পরিসংখ্যান বার */}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between overflow-hidden rounded-[22px] border border-border-base/80 bg-white p-4 shadow-sh1 backdrop-blur-xl">
         <div className="flex items-center gap-2 font-body text-[13.5px] font-bold text-sky-950">
           <span>📸 মোট ক্লাসরুম ছবি:</span>
@@ -172,7 +185,7 @@ export default function ClassroomGalleryClient({
           </svg>
           <input
             type="text"
-            placeholder="ক্যাপশন দিয়ে খুঁজুন..."
+            placeholder="রেফারেন্স শিরোনাম দিয়ে খুঁজুন..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-[38px] w-full rounded-full border border-border-base/80 bg-surface-muted/60 pl-10 pr-4 font-body text-[12.5px] text-ink-800 placeholder:text-muted/70 outline-none focus:border-sky-600 focus:bg-white"
@@ -184,22 +197,22 @@ export default function ClassroomGalleryClient({
       {filteredPhotos.length === 0 ? (
         <div className="rounded-[24px] border border-border-base/80 bg-white p-8 shadow-sh1">
           <EmptyState
-            title="কোনো ক্লাসরুম ছবি পাওয়া যায়নি"
+            title="কোনো ক্লাসরুম ছবি পাওয়া যায়নি"
             hint="Cloudinary লিংক ব্যবহার করে ক্লাসরুমের নতুন ছবি যুক্ত করুন।"
           />
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredPhotos.map((photo) => (
+          {filteredPhotos.map((photo, idx) => (
             <div
               key={photo.id}
               className="hover-lift flex flex-col justify-between overflow-hidden rounded-[24px] border border-border-base/90 bg-white p-3.5 shadow-sh1 transition-all duration-brand hover:shadow-sh2"
             >
               <div>
-                {/* ইমেজ ফ্রেম (ক্লিক করলে বড় লাইটবক্সে ওপেন হবে) */}
+                {/* ইমেজ ফ্রেম */}
                 <div
                   onClick={() => setPreviewPhoto(photo)}
-                  className="group relative aspect-[4/3] w-full cursor-pointer overflow-hidden rounded-2xl bg-surface-muted border border-border-base/60"
+                  className="group relative aspect-video w-full cursor-pointer overflow-hidden rounded-2xl bg-surface-muted border border-border-base/60"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -216,9 +229,14 @@ export default function ClassroomGalleryClient({
                       👁️ বড় করে দেখুন
                     </span>
                   </div>
+
+                  {/* স্লট পজিশন ইন্ডিকেটর */}
+                  <span className="absolute top-2 left-2 rounded-md bg-sky-950/70 px-2 py-0.5 font-body text-[10px] font-bold text-white backdrop-blur-sm">
+                    {idx % 3 === 0 ? "১৬:৯ প্রধান ছবি" : "সাব-স্প্লিট ছবি"}
+                  </span>
                 </div>
 
-                {/* ক্যাপশন */}
+                {/* অভ্যন্তরীণ রেফারেন্স শিরোনাম */}
                 <p className="mt-3 font-body text-[13px] font-bold leading-snug text-sky-950 line-clamp-2">
                   {photo.caption}
                 </p>
@@ -259,19 +277,19 @@ export default function ClassroomGalleryClient({
         </div>
       )}
 
-      {/* নতুন ছবি যুক্ত / এডিট মোডাল (লাইভ ইমেজ প্রিভিউ সহ) */}
+      {/* নতুন ছবি যুক্ত / এডিট মোডাল */}
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingPhoto ? "ছবির ক্যাপশন ও লিংক সম্পাদনা" : "নতুন ক্লাসরুম ছবি যুক্ত করুন"}
-        description="Cloudinary বা ইমেজ হোস্টিং লিংক এবং ছবির ক্যাপশন প্রদান করুন।"
+        title={editingPhoto ? "ছবির রেফারেন্স ও লিংক সম্পাদনা" : "নতুন ক্লাসরুম ছবি যুক্ত করুন"}
+        description="১৬:৯ বা ল্যান্ডস্কেপ সাইজের Cloudinary ইমেজ লিংক ও আপনার চেনার সুবিধার রেফারেন্স নাম দিন।"
       >
         <div className="mb-4 flex items-center justify-between rounded-xl border border-sky-200 bg-sky-50/80 p-3">
           <div className="flex items-center gap-2">
             <span className="text-base">⚡</span>
             <div>
               <p className="font-body text-[12px] font-bold text-sky-950">নমুনা ক্লাসরুম ছবি</p>
-              <p className="font-body text-[10.5px] text-sky-800">ডেমো লিংক ও ক্যাপশন লোড করুন</p>
+              <p className="font-body text-[10.5px] text-sky-800">ডেমো লিংক ও ১৬:৯ ছবি লোড করুন</p>
             </div>
           </div>
           <button
@@ -288,21 +306,21 @@ export default function ClassroomGalleryClient({
             <TextInput
               type="url"
               required
-              placeholder="https://res.cloudinary.com/... বা https://images.unsplash.com/..."
+              placeholder="https://res.cloudinary.com/... বা ইমেজ লিংক"
               value={formData.image_url}
               onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
             />
           </Field>
 
-          {/* 🖼️ লাইভ ইমেজ প্রিভিউয়ার */}
+          {/* 🖼️ লাইভ ১৬:৯ ইমেজ প্রিভিউয়ার */}
           {formData.image_url && (
             <div className="overflow-hidden rounded-xl border border-border-base bg-surface-muted/50 p-2 text-center">
-              <p className="mb-1 text-[11px] font-bold text-muted">লাইভ ছবি প্রিভিউ:</p>
+              <p className="mb-1 text-[11px] font-bold text-muted">লাইভ ১৬:৯ ফ্রেম প্রিভিউ:</p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={formData.image_url}
                 alt="Preview"
-                className="mx-auto max-h-40 rounded-lg object-cover shadow-2xs"
+                className="mx-auto max-h-40 rounded-lg aspect-video object-cover shadow-2xs"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = "none";
                 }}
@@ -310,13 +328,16 @@ export default function ClassroomGalleryClient({
             </div>
           )}
 
-          <Field label="ছবির ক্যাপশন *" required>
+          <Field label="ছবির অভ্যন্তরীণ শিরোনাম / রেফারেন্স নাম *" required>
             <TextInput
               required
-              placeholder="যেমন: হোয়াইটবোর্ডে লজিক গেইট বোঝাচ্ছেন স্যার"
+              placeholder="যেমন: ক্লাসরুম লেকচার মুহূর্ত ০১"
               value={formData.caption}
               onChange={(e) => setFormData({ ...formData, caption: e.target.value })}
             />
+            <span className="mt-1 block font-body text-[10.5px] text-muted">
+              (এই নামটি শুধুমাত্র অ্যাডমিন প্যানেলে আপনার চেনার জন্য থাকবে, ওয়েবসাইটে কোনো ক্যাপশন টেক্সট দেখাবে না।)
+            </span>
           </Field>
 
           <div className="mt-5 flex justify-end gap-2 border-t border-border-base/60 pt-4">
@@ -343,10 +364,10 @@ export default function ClassroomGalleryClient({
             <img
               src={previewPhoto.image_url}
               alt={previewPhoto.caption}
-              className="w-full max-h-[460px] rounded-2xl object-cover border border-border-base shadow-sm"
+              className="w-full max-h-[460px] rounded-2xl aspect-video object-cover border border-border-base shadow-sm"
             />
-            <p className="font-body text-[14px] font-bold leading-relaxed text-sky-950">
-              {previewPhoto.caption}
+            <p className="font-body text-[13.5px] font-bold text-sky-950">
+              রেফারেন্স: {previewPhoto.caption}
             </p>
             <div className="flex justify-end border-t border-border-base/60 pt-3">
               <SecondaryButton type="button" onClick={() => setPreviewPhoto(null)}>
