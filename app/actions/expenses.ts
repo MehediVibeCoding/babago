@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import type { Expense, ExpenseCategory, Payment } from "@/lib/types";
 
 const EXPENSES_TABLE = "expenses";
@@ -26,7 +26,7 @@ export async function getExpensesData(): Promise<{
   expenses: Expense[];
   payments: Payment[];
 }> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const [
     { data: expensesData, error: eErr },
@@ -47,7 +47,7 @@ export async function getExpensesData(): Promise<{
 
 // ২. নতুন খরচ এন্ট্রি করা
 export async function createExpense(input: ExpenseInput): Promise<ExpenseActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const title = input.title?.trim();
   if (!title) return { ok: false, message: "খরচের শিরোনাম বা বিবরণ দিন।" };
@@ -82,7 +82,7 @@ export async function updateExpense(
   id: string,
   input: ExpenseInput
 ): Promise<ExpenseActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const title = input.title?.trim();
   if (!title) return { ok: false, message: "খরচের শিরোনাম বা বিবরণ দিন।" };
@@ -114,7 +114,7 @@ export async function updateExpense(
 
 // ৪. খরচ মুছে ফেলা
 export async function deleteExpense(id: string): Promise<ExpenseActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { error } = await supabase.from(EXPENSES_TABLE).delete().eq("id", id);
 

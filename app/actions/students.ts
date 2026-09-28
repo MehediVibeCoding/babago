@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import type { Student, StudentStatus, Batch, Payment } from "@/lib/types";
 
 const STUDENTS_TABLE = "students";
@@ -33,7 +33,7 @@ export async function getStudentsData(): Promise<{
   batches: Batch[];
   payments: Payment[];
 }> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const [
     { data: studentsData, error: sErr },
@@ -58,7 +58,7 @@ export async function getStudentsData(): Promise<{
 
 // ২. নতুন শিক্ষার্থী যুক্ত করা (কাস্টম ভর্তির তারিখ সহ)
 export async function createStudent(input: StudentInput): Promise<StudentActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const name = input.full_name?.trim();
   const phone = input.phone?.trim();
@@ -99,7 +99,7 @@ export async function createStudent(input: StudentInput): Promise<StudentActionR
 
 // ৩. শিক্ষার্থী তথ্য ও ভর্তির তারিখ আপডেট করা
 export async function updateStudent(id: string, input: StudentInput): Promise<StudentActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const name = input.full_name?.trim();
   const phone = input.phone?.trim();
@@ -141,7 +141,7 @@ export async function updateStudent(id: string, input: StudentInput): Promise<St
 
 // ৪. শিক্ষার্থীর স্ট্যাটাস পরিবর্তন
 export async function updateStudentStatus(id: string, status: StudentStatus): Promise<StudentActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { data, error } = await supabase
     .from(STUDENTS_TABLE)
@@ -162,7 +162,7 @@ export async function updateStudentStatus(id: string, status: StudentStatus): Pr
 
 // ৫. শিক্ষার্থী মুছে ফেলা
 export async function deleteStudent(id: string): Promise<StudentActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { error } = await supabase.from(STUDENTS_TABLE).delete().eq("id", id);
 

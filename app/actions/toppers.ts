@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import type { SuccessTopper } from "@/lib/types";
 
 const TABLE = "success_toppers";
@@ -24,7 +24,7 @@ export interface SuccessTopperInput {
 
 // ১. সকল কৃতি শিক্ষার্থীর তথ্য লোড করা
 export async function getSuccessToppers(): Promise<SuccessTopper[]> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -44,7 +44,7 @@ export async function getSuccessToppers(): Promise<SuccessTopper[]> {
 export async function createSuccessTopper(
   input: SuccessTopperInput
 ): Promise<TopperActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const name = input.name?.trim();
   const batch = input.batch?.trim();
@@ -86,7 +86,7 @@ export async function updateSuccessTopper(
   id: string,
   input: SuccessTopperInput
 ): Promise<TopperActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const name = input.name?.trim();
   const batch = input.batch?.trim();
@@ -126,7 +126,7 @@ export async function updateSuccessTopper(
 
 // ৪. কৃতি শিক্ষার্থী মুছে ফেলা
 export async function deleteSuccessTopper(id: string): Promise<TopperActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { error } = await supabase.from(TABLE).delete().eq("id", id);
 

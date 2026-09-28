@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import type { Payment, Student, Batch, PaymentMethod } from "@/lib/types";
 
 const PAYMENTS_TABLE = "payments";
@@ -43,7 +43,7 @@ export async function getPaymentsData(): Promise<{
   students: Student[];
   batches: Batch[];
 }> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const [
     { data: paymentsData, error: pErr },
@@ -68,7 +68,7 @@ export async function getPaymentsData(): Promise<{
 
 // ২. শিক্ষার্থীর বেতন/পেমেন্ট এন্ট্রি করা (নগদ বা অনলাইন)
 export async function recordPayment(input: PaymentInput): Promise<PaymentActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   if (!input.student_id) return { ok: false, message: "শিক্ষার্থী নির্বাচন করুন।" };
   if (!input.amount || input.amount <= 0) return { ok: false, message: "সঠিক টাকার পরিমাণ দিন।" };
@@ -100,7 +100,7 @@ export async function recordPayment(input: PaymentInput): Promise<PaymentActionR
 export async function recordNewStudentAndPayment(
   input: QuickStudentAndPaymentInput
 ): Promise<PaymentActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const name = input.full_name?.trim();
   const phone = input.phone?.trim();
@@ -162,7 +162,7 @@ export async function updatePayment(
   id: string,
   input: Omit<PaymentInput, "student_id">
 ): Promise<PaymentActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   if (!input.amount || input.amount <= 0) return { ok: false, message: "সঠিক টাকার পরিমাণ দিন।" };
 
@@ -190,7 +190,7 @@ export async function updatePayment(
 
 // ৫. পেমেন্ট রেকর্ড মুছে ফেলা
 export async function deletePayment(id: string): Promise<PaymentActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { error } = await supabase.from(PAYMENTS_TABLE).delete().eq("id", id);
 

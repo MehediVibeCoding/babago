@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import type { ClassroomPhoto } from "@/lib/types";
 
 const TABLE = "classroom_photos";
@@ -21,7 +21,7 @@ export interface ClassroomPhotoInput {
 
 // ১. সকল ক্লাসরুমের ছবি লোড করা
 export async function getClassroomPhotos(): Promise<ClassroomPhoto[]> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -41,7 +41,7 @@ export async function getClassroomPhotos(): Promise<ClassroomPhoto[]> {
 export async function createClassroomPhoto(
   input: ClassroomPhotoInput
 ): Promise<ClassroomActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
   const imageUrl = input.image_url?.trim();
 
   if (!imageUrl) {
@@ -72,7 +72,7 @@ export async function updateClassroomPhoto(
   id: string,
   input: ClassroomPhotoInput
 ): Promise<ClassroomActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
   const imageUrl = input.image_url?.trim();
 
   if (!imageUrl) {
@@ -101,7 +101,7 @@ export async function updateClassroomPhoto(
 
 // ৪. ক্লাসরুম ছবি মুছে ফেলা
 export async function deleteClassroomPhoto(id: string): Promise<ClassroomActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { error } = await supabase.from(TABLE).delete().eq("id", id);
 

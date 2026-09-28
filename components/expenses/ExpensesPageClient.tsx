@@ -1,10 +1,11 @@
 "use client";
 
+import { safeCalculate } from "@/lib/calc";
+import { dhakaNow, dhakaDateKey } from "@/lib/date";
 import { useMemo, useState, useEffect, useCallback } from "react";
 import type {
   MonthlyFinancialSummary,
   RecurringRule,
-  UnifiedTransaction,
   TransactionType,
   PaymentMethodType,
   ActionResult,
@@ -36,13 +37,13 @@ import { formatTaka } from "@/lib/utils";
 import { toBengaliDigits, formatBengaliDate, BENGALI_MONTHS } from "@/lib/bengaliNumerals";
 
 function getCurrentMonthValue() {
-  const now = new Date();
+  const now = dhakaNow();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function getMonthOptions() {
   const options: { value: string; label: string }[] = [];
-  const now = new Date();
+  const now = dhakaNow();
   for (let i = -6; i <= 2; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
     const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -95,7 +96,7 @@ export default function FinancePageClient({
     title: "",
     category: "সরকারি বেতন",
     amount: 0,
-    income_date: new Date().toISOString().slice(0, 10),
+    income_date: dhakaDateKey(new Date()),
     payment_method: "bank" as PaymentMethodType,
     note: "",
   });
@@ -107,7 +108,7 @@ export default function FinancePageClient({
     title: "",
     category: "ভাড়া",
     amount: 0,
-    expense_date: new Date().toISOString().slice(0, 10),
+    expense_date: dhakaDateKey(new Date()),
     payment_method: "cash" as PaymentMethodType,
     note: "",
   });
@@ -311,17 +312,12 @@ export default function FinancePageClient({
     if (val === "C") setCalcInput("");
     else if (val === "⌫") setCalcInput((prev) => prev.slice(0, -1));
     else if (val === "=") {
-      try {
-        const sanitized = calcInput.replace(/[^0-9+\-*/.]/g, "");
-        if (!sanitized) return;
-        // eslint-disable-next-line no-new-func
-        const result = Function(`'use strict'; return (${sanitized})`)();
-        if (!isNaN(result) && isFinite(result)) {
-          setCalcInput(String(Math.round(result * 100) / 100));
-        }
-      } catch {
+      const result = safeCalculate(calcInput);
+      if (result === null) {
         showToast("ভুল গাণিতিক সমীকরণ", "error");
+        return;
       }
+      setCalcInput(String(Math.round(result * 100) / 100));
     } else {
       setCalcInput((prev) => prev + val);
     }

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import type { Batch, Student } from "@/lib/types";
 
 const BATCHES_TABLE = "batches";
@@ -30,7 +30,7 @@ export async function getBatchesData(): Promise<{
   batches: Batch[];
   students: Student[];
 }> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const [
     { data: batchesData, error: bErr },
@@ -51,7 +51,7 @@ export async function getBatchesData(): Promise<{
 
 // ২. নতুন ব্যাচ তৈরি করা
 export async function createBatch(input: BatchInput): Promise<BatchActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const name = input.name?.trim();
   if (!name) return { ok: false, message: "ব্যাচের নাম আবশ্যক।" };
@@ -86,7 +86,7 @@ export async function createBatch(input: BatchInput): Promise<BatchActionResult>
 
 // ৩. ব্যাচের তথ্য আপডেট করা
 export async function updateBatch(id: string, input: BatchInput): Promise<BatchActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const name = input.name?.trim();
   if (!name) return { ok: false, message: "ব্যাচের নাম আবশ্যক।" };
@@ -120,7 +120,7 @@ export async function updateBatch(id: string, input: BatchInput): Promise<BatchA
 
 // ৪. ব্যাচ সক্রিয়/নিষ্ক্রিয় টগল করা (মেইন ওয়েবসাইটের সিঙ্ক)
 export async function toggleBatchActive(id: string, is_active: boolean): Promise<BatchActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { data, error } = await supabase
     .from(BATCHES_TABLE)
@@ -142,7 +142,7 @@ export async function toggleBatchActive(id: string, is_active: boolean): Promise
 
 // ৫. ব্যাচ মুছে ফেলা
 export async function deleteBatch(id: string): Promise<BatchActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { error } = await supabase.from(BATCHES_TABLE).delete().eq("id", id);
 

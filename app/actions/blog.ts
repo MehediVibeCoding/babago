@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import type { BlogPost } from "@/lib/types";
 
 const BLOG_TABLE = "blog_posts";
@@ -23,7 +23,7 @@ export interface BlogPostInput {
 
 // ১. সকল ব্লগ পোস্ট লোড করা
 export async function getBlogPostsData(): Promise<BlogPost[]> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { data, error } = await supabase
     .from(BLOG_TABLE)
@@ -40,7 +40,7 @@ export async function getBlogPostsData(): Promise<BlogPost[]> {
 
 // ২. নতুন ব্লগ পোস্ট তৈরি করা
 export async function createBlogPost(input: BlogPostInput): Promise<BlogActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const title = input.title?.trim();
   const slug = input.slug
@@ -83,7 +83,7 @@ export async function createBlogPost(input: BlogPostInput): Promise<BlogActionRe
 
 // ৩. ব্লগ পোস্ট আপডেট করা
 export async function updateBlogPost(id: string, input: BlogPostInput): Promise<BlogActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const title = input.title?.trim();
   const slug = input.slug
@@ -134,7 +134,7 @@ export async function updateBlogPost(id: string, input: BlogPostInput): Promise<
 
 // ৪. ১-ক্লিক পাবলিশ / আনপাবলিশ টগল (মেইন ওয়েবসাইটে লাইভ কন্ট্রোল)
 export async function toggleBlogPublish(id: string, published: boolean): Promise<BlogActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { data: existing } = await supabase
     .from(BLOG_TABLE)
@@ -165,7 +165,7 @@ export async function toggleBlogPublish(id: string, published: boolean): Promise
 
 // ৫. ব্লগ পোস্ট মুছে ফেলা
 export async function deleteBlogPost(id: string): Promise<BlogActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { error } = await supabase.from(BLOG_TABLE).delete().eq("id", id);
 

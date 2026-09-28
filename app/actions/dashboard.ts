@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import type { Batch, Payment, Student } from "@/lib/types";
 import {
   currentMonthKey,
@@ -9,6 +9,7 @@ import {
   bengaliDayName,
 } from "@/lib/utils";
 import { toBengaliDigits } from "@/lib/bengaliNumerals";
+import { dhakaNow } from "@/lib/date";
 
 export type DueStudentData = {
   student: Student;
@@ -38,8 +39,8 @@ export type LiveDashboardData = {
 
 // ⚡ Supabase থেকে রিয়েলটাইম লাইভ ডাটা ফেচিং ইঞ্জিন (কোনো মক ডাটা ছাড়া)
 export async function getLiveDashboardData(): Promise<LiveDashboardData> {
-  const supabase = await createClient();
-  const today = new Date();
+  const supabase = await createAdminClient();
+  const today = dhakaNow();
   const monthKey = currentMonthKey(today);
 
   // প্যারালাল ও অপ্টিমাইজড লাইভ ডাটা ফেচিং

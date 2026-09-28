@@ -2,6 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: "Noto Sans Bengali";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/noto-bengali-digits-400.woff2") format("woff2");
+  unicode-range: U+09E6-09EF; /* শুধু বাংলা অঙ্ক ০-৯ */
+}
+@font-face {
+  font-family: "Noto Sans Bengali";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/noto-bengali-digits-500.woff2") format("woff2");
+  unicode-range: U+09E6-09EF; /* শুধু বাংলা অঙ্ক ০-৯ */
+}
+@font-face {
+  font-family: "Noto Sans Bengali";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/noto-bengali-digits-600.woff2") format("woff2");
+  unicode-range: U+09E6-09EF; /* শুধু বাংলা অঙ্ক ০-৯ */
+}
+@font-face {
+  font-family: "Noto Sans Bengali";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/noto-bengali-digits-700.woff2") format("woff2");
+  unicode-range: U+09E6-09EF; /* শুধু বাংলা অঙ্ক ০-৯ */
+}
+
 :root {
   /* মূল সাইটের app/globals.css থেকে হুবহু কপি — টোকেন সিঙ্ক রাখতে হবে */
   --font-display: "Playfair Display";

@@ -25,7 +25,6 @@ export type Student = {
   phone: string;
   guardian_phone: string;
   status: StudentStatus;
-  monthly_fee: number;
   created_at: string;
 };
 

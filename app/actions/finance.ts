@@ -1,7 +1,8 @@
 "use server";
 
+import { dhakaNow } from "@/lib/date";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 
 export type TransactionType = "income" | "expense";
 export type PaymentMethodType = "cash" | "bank" | "bkash" | "other";
@@ -61,8 +62,8 @@ export interface ActionResult<T = unknown> {
 // ══════════════════════════════════════════════════════════════════════
 export async function applyPendingRecurringRules(): Promise<{ appliedCount: number }> {
   try {
-    const supabase = await createClient();
-    const today = new Date();
+    const supabase = await createAdminClient();
+    const today = dhakaNow();
     const currentYearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
     const currentDay = today.getDate();
 
@@ -135,8 +136,8 @@ export async function applyPendingRecurringRules(): Promise<{ appliedCount: numb
 export async function getMonthlyFinancialStatement(
   monthKey?: string // YYYY-MM
 ): Promise<MonthlyFinancialSummary> {
-  const supabase = await createClient();
-  const now = new Date();
+  const supabase = await createAdminClient();
+  const now = dhakaNow();
   const targetMonth = monthKey || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   // প্রথমে পেন্ডিং অটো-রুলস অ্যাপ্লাই করে নেওয়া
@@ -305,7 +306,7 @@ export async function createRecurringRule(input: {
   payment_method?: PaymentMethodType;
   note?: string;
 }): Promise<ActionResult<RecurringRule>> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const title = input.title?.trim();
   if (!title) return { ok: false, message: "রুলের নাম বা শিরোনাম দিন।" };
@@ -349,7 +350,7 @@ export async function updateRecurringRule(
     note?: string;
   }
 ): Promise<ActionResult<RecurringRule>> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const title = input.title?.trim();
   if (!title) return { ok: false, message: "রুলের নাম দিন।" };
@@ -382,7 +383,7 @@ export async function toggleRecurringRuleActive(
   id: string,
   is_active: boolean
 ): Promise<ActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { error } = await supabase
     .from("recurring_finance_rules")
@@ -398,7 +399,7 @@ export async function toggleRecurringRuleActive(
 }
 
 export async function deleteRecurringRule(id: string): Promise<ActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { error } = await supabase.from("recurring_finance_rules").delete().eq("id", id);
 
@@ -421,7 +422,7 @@ export async function createIncomeRecord(input: {
   payment_method: PaymentMethodType;
   note?: string;
 }): Promise<ActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const title = input.title?.trim();
   if (!title) return { ok: false, message: "আয়ের শিরোনাম দিন।" };
@@ -450,7 +451,7 @@ export async function createIncomeRecord(input: {
 }
 
 export async function deleteIncomeRecord(id: string): Promise<ActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { error } = await supabase.from("income_records").delete().eq("id", id);
 
@@ -473,7 +474,7 @@ export async function createExpenseRecord(input: {
   payment_method?: PaymentMethodType;
   note?: string;
 }): Promise<ActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const title = input.title?.trim();
   if (!title) return { ok: false, message: "খরচের শিরোনাম দিন।" };
@@ -502,7 +503,7 @@ export async function createExpenseRecord(input: {
 }
 
 export async function deleteExpenseRecord(id: string): Promise<ActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { error } = await supabase.from("expenses").delete().eq("id", id);
 

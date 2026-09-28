@@ -11,7 +11,6 @@ import {
 import { useToast } from "@/components/admin/Toast";
 import Modal from "@/components/admin/Modal";
 import {
-  Badge,
   PageHeader,
   PrimaryButton,
   SecondaryButton,

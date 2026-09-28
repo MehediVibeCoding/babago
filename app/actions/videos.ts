@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import type { VideoLecture } from "@/lib/types";
 
 const TABLE = "video_lectures";
@@ -78,7 +78,7 @@ export async function fetchLiveThumbnailAction(videoUrl: string): Promise<{ thum
 
 // ৫. সকল ভিডিও লেকচার লোড করা
 export async function getVideoLectures(): Promise<VideoLecture[]> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -98,7 +98,7 @@ export async function getVideoLectures(): Promise<VideoLecture[]> {
 export async function createVideoLecture(
   input: VideoLectureInput
 ): Promise<VideoActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const title = input.title?.trim();
   const videoUrl = input.video_url?.trim();
@@ -134,7 +134,7 @@ export async function updateVideoLecture(
   id: string,
   input: VideoLectureInput
 ): Promise<VideoActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const title = input.title?.trim();
   const videoUrl = input.video_url?.trim();
@@ -167,7 +167,7 @@ export async function updateVideoLecture(
 
 // ৮. ভিডিও লেকচার মুছে ফেলা
 export async function deleteVideoLecture(id: string): Promise<VideoActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { error } = await supabase.from(TABLE).delete().eq("id", id);
 

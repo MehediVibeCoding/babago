@@ -1,5 +1,6 @@
 "use client";
 
+import { dhakaDateKey } from "@/lib/date";
 import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Student, Batch, Payment, StudentStatus } from "@/lib/types";
@@ -28,7 +29,7 @@ import { toBengaliDigits, formatBengaliDate } from "@/lib/bengaliNumerals";
 const GROUPS = ["বিজ্ঞান বিভাগ", "মানবিক বিভাগ", "ব্যবসায় শিক্ষা বিভাগ"];
 
 function getTodayDateString() {
-  return new Date().toISOString().slice(0, 10);
+  return dhakaDateKey(new Date());
 }
 
 const EMPTY_FORM: StudentInput = {

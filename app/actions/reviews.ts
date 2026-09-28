@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import type { TestimonialItem } from "@/lib/types";
 
 const TABLE = "testimonials";
@@ -23,7 +23,7 @@ export interface TestimonialInput {
 
 // ১. সকল রিভিউ ও মতামত লোড করা
 export async function getTestimonials(): Promise<TestimonialItem[]> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -44,7 +44,7 @@ export async function getTestimonials(): Promise<TestimonialItem[]> {
 export async function createTestimonial(
   input: TestimonialInput
 ): Promise<TestimonialActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const name = input.name?.trim();
   const quote = input.quote?.trim();
@@ -81,7 +81,7 @@ export async function updateTestimonial(
   id: string,
   input: TestimonialInput
 ): Promise<TestimonialActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const name = input.name?.trim();
   const quote = input.quote?.trim();
@@ -118,7 +118,7 @@ export async function toggleFeaturedTestimonial(
   id: string,
   is_featured: boolean
 ): Promise<TestimonialActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -138,7 +138,7 @@ export async function toggleFeaturedTestimonial(
 
 // ৫. রিভিউ মুছে ফেলা
 export async function deleteTestimonial(id: string): Promise<TestimonialActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { error } = await supabase.from(TABLE).delete().eq("id", id);
 

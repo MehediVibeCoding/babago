@@ -1,4 +1,5 @@
 import { toBengaliDigits } from "./bengaliNumerals";
+import { dhakaDateKey, dhakaNow } from "./date";
 import type { Batch, Payment, Student } from "./types";
 
 /** ছোট classnames হেল্পার — কন্ডিশনাল Tailwind ক্লাস জোড়া দেওয়ার জন্য */
@@ -21,7 +22,7 @@ export function bengaliDayName(dayIndex: number): string {
 /**
  * ব্যাচের schedule ফ্রি-টেক্সট ফিল্ড থেকে আজ ক্লাস আছে কিনা বের করে
  */
-export function isBatchToday(schedule: string, today: Date = new Date()): boolean {
+export function isBatchToday(schedule: string, today: Date = dhakaNow()): boolean {
   const dayIdx = today.getDay(); // 0=রবি ... 6=শনি
   const todayName = BENGALI_DAY_NAMES[dayIdx];
 
@@ -38,10 +39,12 @@ export function isBatchToday(schedule: string, today: Date = new Date()): boolea
  */
 export function getCompletedBillingMonths(
   enrollmentDateStr: string,
-  today: Date = new Date()
+  today: Date = dhakaNow()
 ): number {
   if (!enrollmentDateStr) return 0;
-  const start = new Date(enrollmentDateStr.slice(0, 10) + "T00:00:00");
+  const startKey = dhakaDateKey(enrollmentDateStr);
+  if (!startKey) return 0;
+  const start = new Date(startKey + "T00:00:00");
   if (isNaN(start.getTime()) || start > today) return 0;
 
   let months =
@@ -57,26 +60,41 @@ export function getCompletedBillingMonths(
 }
 
 /** এনরোলমেন্টের মোট সময়কাল */
-export function monthsEnrolled(createdAt: string, today: Date = new Date()): number {
+export function monthsEnrolled(createdAt: string, today: Date = dhakaNow()): number {
   return getCompletedBillingMonths(createdAt, today);
+}
+
+/** YYYY-MM কী-কে n মাস এগিয়ে নেয় */
+function addMonthsToKey(key: string, n: number): string {
+  const [y, m] = key.split("-").map(Number);
+  const total = y * 12 + (m - 1) + n;
+  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, "0")}`;
 }
 
 /**
  * 🎯 আসল বকেয়া মাস গণনা:
- * মোট সমাপ্ত হওয়া সাইকেল সংখ্যা থেকে মোট পরিশোধিত মাসের সংখ্যা বিয়োগ করে।
- * রানিং মাসের কোনো বকেয়া দেখাবে না।
+ * ভর্তির মাস থেকে শুরু করে যতগুলো সাইকেল সম্পূর্ণ হয়েছে, তার প্রতিটি মাস (YYYY-MM)
+ * আলাদাভাবে পরিশোধিত কিনা দেখা হয়। অগ্রিম মাসের টাকা পুরোনো বকেয়া কমায় না।
+ * চলতি রানিং সাইকেলের কোনো বকেয়া দেখানো হয় না।
  */
 export function dueMonthsForStudent(
   student: Student,
   payments: Payment[],
-  today: Date = new Date()
+  today: Date = dhakaNow()
 ): number {
   const completedCycles = getCompletedBillingMonths(student.created_at, today);
-  const distinctPaidMonths = new Set(
-    payments.filter((p) => p.student_id === student.id).map((p) => p.for_month.slice(0, 7))
-  ).size;
+  if (completedCycles === 0) return 0;
 
-  return Math.max(0, completedCycles - distinctPaidMonths);
+  const startMonth = dhakaDateKey(student.created_at).slice(0, 7);
+  const paidMonths = new Set(
+    payments.filter((p) => p.student_id === student.id).map((p) => (p.for_month || "").slice(0, 7))
+  );
+
+  let due = 0;
+  for (let i = 0; i < completedCycles; i++) {
+    if (!paidMonths.has(addMonthsToKey(startMonth, i))) due++;
+  }
+  return due;
 }
 
 export function totalPaidByStudent(studentId: string, payments: Payment[]): number {
@@ -84,7 +102,7 @@ export function totalPaidByStudent(studentId: string, payments: Payment[]): numb
 }
 
 /** YYYY-MM-DD থেকে "চলতি মাস" YYYY-MM বের করে */
-export function currentMonthKey(today: Date = new Date()): string {
+export function currentMonthKey(today: Date = dhakaNow()): string {
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
 }
 

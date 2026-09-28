@@ -1,0 +1,8 @@
+-- Security hardening (Supabase-এ ইতোমধ্যে প্রয়োগ করা হয়েছে; রেফারেন্সের জন্য রাখা)
+-- 1) is_admin(): JWT-র ইমেইল দিয়ে অ্যাডমিন চেক
+-- 2) সব পুরোনো পলিসি মুছে পরিষ্কার নতুন পলিসি: admin_all (শুধু অ্যাডমিন), public_read (anon, শুধু পড়া),
+--    public_admission_insert / public_review_insert (anon, শুধু নিরাপদ মান)
+-- 3) guard_student_insert / guard_testimonial_insert ট্রিগার: ডুপ্লিকেট ও ফ্লাড লিমিট
+-- 4) check_recent_student_submission ফাংশন মুছে ফেলা, rls_auto_enable-এর API অ্যাক্সেস বন্ধ
+-- 5) ফরেন-কি ইনডেক্স
+-- অ্যাডমিন ইমেইল বদলাতে হলে: create or replace function public.is_admin() ... এ ইমেইল বদলান।

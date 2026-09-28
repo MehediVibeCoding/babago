@@ -1,9 +1,9 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { createClient as createSupabaseJsClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
+/** সেশন-ভিত্তিক Supabase ক্লায়েন্ট (anon key + লগইন কুকি)। ডেটার সুরক্ষা ডাটাবেজের RLS দেখে। */
 export async function createClient() {
   const cookieStore = await cookies();
 
@@ -29,11 +29,23 @@ export async function createClient() {
   );
 }
 
-// Server Actions এবং অ্যাডমিন অপারেশনের জন্য ফুল-এক্সেস ক্লায়েন্ট
-export function createServiceRoleClient() {
-  return createSupabaseJsClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
+/**
+ * প্রতিটি Server Action ও ডেটা-ফেচের প্রবেশদ্বার।
+ * Middleware ছাড়াও এখানে আবার যাচাই হয় (defense in depth): লগইন করা এবং ইমেইল
+ * ADMIN_EMAIL-এর সাথে মিললেই কেবল ক্লায়েন্ট পাওয়া যায়, নইলে এরর।
+ * ডাটাবেজের RLS-ও একই অ্যাডমিন ইমেইল চেক করে।
+ */
+export async function createAdminClient() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const isAdmin = !!user && !!adminEmail && user.email?.toLowerCase() === adminEmail;
+
+  if (!isAdmin) {
+    throw new Error("UNAUTHORIZED");
+  }
+  return supabase;
 }

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import type { FarewellMemory } from "@/lib/types";
 
 const TABLE = "farewell_memories";
@@ -22,7 +22,7 @@ export interface FarewellMemoryInput {
 
 // ১. সকল বিদায় ও স্মৃতি অ্যালবাম লোড করা
 export async function getFarewellMemories(): Promise<FarewellMemory[]> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -42,7 +42,7 @@ export async function getFarewellMemories(): Promise<FarewellMemory[]> {
 export async function createFarewellMemory(
   input: FarewellMemoryInput
 ): Promise<MemoryActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const batchTag = input.batch_tag?.trim();
   const imageUrl = input.image_url?.trim();
@@ -79,7 +79,7 @@ export async function updateFarewellMemory(
   id: string,
   input: FarewellMemoryInput
 ): Promise<MemoryActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const batchTag = input.batch_tag?.trim();
   const imageUrl = input.image_url?.trim();
@@ -114,7 +114,7 @@ export async function updateFarewellMemory(
 
 // ৪. স্মৃতি ছবি মুছে ফেলা
 export async function deleteFarewellMemory(id: string): Promise<MemoryActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { error } = await supabase.from(TABLE).delete().eq("id", id);
 

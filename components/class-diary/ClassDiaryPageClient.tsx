@@ -1,5 +1,6 @@
 "use client";
 
+import { dhakaNow, dhakaDateKey } from "@/lib/date";
 import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import type { ClassDiaryEntry, Batch } from "@/lib/types";
@@ -12,7 +13,6 @@ import {
 import { useToast } from "@/components/admin/Toast";
 import Modal from "@/components/admin/Modal";
 import {
-  Badge,
   PageHeader,
   PrimaryButton,
   SecondaryButton,
@@ -25,12 +25,12 @@ import {
 import { toBengaliDigits, formatBengaliDate, BENGALI_MONTHS } from "@/lib/bengaliNumerals";
 
 function getTodayDateString() {
-  return new Date().toISOString().slice(0, 10);
+  return dhakaDateKey(new Date());
 }
 
 function getMonthOptions() {
   const options: { value: string; label: string }[] = [];
-  const now = new Date();
+  const now = dhakaNow();
   for (let i = -6; i <= 2; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
     const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -133,7 +133,7 @@ export default function ClassDiaryPageClient({
   // পরিসংখ্যান
   const stats = useMemo(() => {
     const total = entries.length;
-    const currentMonthKey = new Date().toISOString().slice(0, 7);
+    const currentMonthKey = dhakaDateKey(new Date()).slice(0, 7);
     const thisMonth = entries.filter((e) => e.entry_date.slice(0, 7) === currentMonthKey).length;
     const withSlides = entries.filter((e) => !!e.slide_url).length;
     return { total, thisMonth, withSlides };

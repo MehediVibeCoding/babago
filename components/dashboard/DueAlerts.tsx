@@ -1,7 +1,7 @@
 import Link from "next/link";
-import type { DueStudent } from "@/lib/dashboard";
+import type { DueStudentData } from "@/app/actions/dashboard";
 
-export default function DueAlerts({ items }: { items: DueStudent[] }) {
+export default function DueAlerts({ items }: { items: DueStudentData[] }) {
   if (!items.length) {
     return (
       <div className="hover-lift mt-5 rounded-[24px] border border-white/90 bg-white/80 p-6 text-center shadow-sh1 backdrop-blur-xl">

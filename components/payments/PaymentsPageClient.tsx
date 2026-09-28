@@ -1,5 +1,6 @@
 "use client";
 
+import { dhakaNow, dhakaDateKey } from "@/lib/date";
 import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Payment, Student, Batch, PaymentMethod } from "@/lib/types";
@@ -26,13 +27,13 @@ import { formatTaka, dueMonthsForStudent } from "@/lib/utils";
 import { toBengaliDigits, formatBengaliDate, BENGALI_MONTHS } from "@/lib/bengaliNumerals";
 
 function getTodayDateString() {
-  return new Date().toISOString().slice(0, 10);
+  return dhakaDateKey(new Date());
 }
 
 // বিগত ৬ মাস ও আগামী ৪ মাসের ড্রপডাউন
 function getMonthOptions() {
   const options: { value: string; label: string }[] = [];
-  const now = new Date();
+  const now = dhakaNow();
   for (let i = -6; i <= 4; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
     const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
@@ -43,7 +44,7 @@ function getMonthOptions() {
 }
 
 function getCurrentMonthValue() {
-  const now = new Date();
+  const now = dhakaNow();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
@@ -60,7 +61,7 @@ export default function PaymentsPageClient({
   const { show: showToast } = useToast();
 
   const [payments, setPayments] = useState<Payment[]>(initialPayments);
-  const [allStudents, setAllStudents] = useState<Student[]>(students);
+  const allStudents: Student[] = students;
   const [search, setSearch] = useState("");
   const [batchFilter, setBatchFilter] = useState<string>("all");
   const [dueFilter, setDueFilter] = useState(false);

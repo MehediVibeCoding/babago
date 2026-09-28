@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import type { ClassDiaryEntry, Batch } from "@/lib/types";
 
 const DIARY_TABLE = "class_diary_entries";
@@ -27,7 +27,7 @@ export async function getClassDiaryData(): Promise<{
   entries: ClassDiaryEntry[];
   batches: Batch[];
 }> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const [
     { data: diaryData, error: dErr },
@@ -48,7 +48,7 @@ export async function getClassDiaryData(): Promise<{
 
 // ২. নতুন ক্লাস ডায়েরি এন্ট্রি যুক্ত করা
 export async function createClassDiaryEntry(input: ClassDiaryInput): Promise<ClassDiaryActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const topic = input.topic?.trim();
   if (!topic) return { ok: false, message: "ক্লাসের মূল টপিক বা শিরোনাম দিন।" };
@@ -82,7 +82,7 @@ export async function updateClassDiaryEntry(
   id: string,
   input: ClassDiaryInput
 ): Promise<ClassDiaryActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const topic = input.topic?.trim();
   if (!topic) return { ok: false, message: "ক্লাসের মূল টপিক বা শিরোনাম দিন।" };
@@ -113,7 +113,7 @@ export async function updateClassDiaryEntry(
 
 // ৪. ক্লাস ডায়েরি এন্ট্রি মুছে ফেলা
 export async function deleteClassDiaryEntry(id: string): Promise<ClassDiaryActionResult> {
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const { error } = await supabase.from(DIARY_TABLE).delete().eq("id", id);
 
