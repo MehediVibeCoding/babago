@@ -140,3 +140,11 @@ export type TestimonialItem = {
   sort_order: number;
   created_at: string;
 };
+
+/** ৬. শিক্ষক পরিচিতির ছবি স্লাইডার (প্রথম ছবি কোডে স্থায়ী, বাকিগুলো এখান থেকে) */
+export type TeacherPhoto = {
+  id: string;
+  image_url: string;
+  sort_order: number;
+  created_at: string;
+};
